@@ -1,0 +1,3 @@
+"""
+Market Regime Detection Module
+"""
