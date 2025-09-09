@@ -125,6 +125,10 @@ class AkshareDataCollector:
             历史数据DataFrame
         """
         try:
+            if not HAS_AKSHARE:
+                logger.warning("Akshare not available, returning empty DataFrame")
+                return pd.DataFrame()
+            
             self._rate_limit_check()
             
             # 转换日期格式
@@ -174,7 +178,8 @@ class AkshareDataCollector:
             
         except Exception as e:
             logger.error(f"Failed to fetch history for {symbol}: {e}")
-            raise DataError(f"History fetch failed for {symbol}: {e}")
+            # 返回空DataFrame而不是抛出异常
+            return pd.DataFrame()
             
     def fetch_realtime_data(self, symbols: List[str]) -> Dict[str, Dict[str, Any]]:
         """获取实时数据

@@ -6,6 +6,8 @@
 import subprocess
 import sys
 import importlib
+import os
+import venv
 from typing import Dict, List, Tuple, Optional
 from pathlib import Path
 
@@ -54,16 +56,67 @@ class DependencyInstaller:
         "alembic": "1.12.0",
     }
     
-    def __init__(self, use_uv: bool = True):
+    def __init__(self, use_uv: bool = True, venv_path: str = ".venv"):
         """初始化依赖安装器
         
         Args:
             use_uv: 是否使用uv包管理器
+            venv_path: 虚拟环境路径
         """
         self.use_uv = use_uv
+        self.venv_path = Path(venv_path)
         self.installed_packages: Dict[str, str] = {}
         self.failed_packages: List[str] = []
+        self.python_executable = None
+        self._setup_virtual_environment()
         
+    def _setup_virtual_environment(self):
+        """设置虚拟环境"""
+        try:
+            if not self.venv_path.exists():
+                logger.info(f"Creating virtual environment at {self.venv_path}")
+                
+                # 检查uv是否可用
+                uv_available = False
+                try:
+                    result = subprocess.run(["uv", "--version"], capture_output=True, text=True, timeout=10)
+                    if result.returncode == 0:
+                        uv_available = True
+                        logger.info(f"Using uv: {result.stdout.strip()}")
+                except (subprocess.TimeoutExpired, FileNotFoundError):
+                    logger.info("uv not available, using standard venv")
+                
+                if uv_available:
+                    # 使用uv创建虚拟环境
+                    cmd = ["uv", "venv", str(self.venv_path)]
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                    if result.returncode == 0:
+                        logger.info("Virtual environment created successfully with uv")
+                    else:
+                        logger.warning(f"uv failed: {result.stderr}, falling back to standard venv")
+                        venv.create(self.venv_path, with_pip=True)
+                        logger.info("Virtual environment created successfully with standard venv")
+                else:
+                    venv.create(self.venv_path, with_pip=True)
+                    logger.info("Virtual environment created successfully with standard venv")
+            else:
+                logger.info(f"Using existing virtual environment at {self.venv_path}")
+            
+            # 设置Python可执行文件路径
+            if os.name == 'nt':  # Windows
+                self.python_executable = self.venv_path / "Scripts" / "python.exe"
+            else:  # Unix/Linux/macOS
+                self.python_executable = self.venv_path / "bin" / "python"
+                
+            if not self.python_executable.exists():
+                raise FileNotFoundError(f"Python executable not found at {self.python_executable}")
+                
+            logger.info(f"Using Python executable: {self.python_executable}")
+            
+        except Exception as e:
+            logger.error(f"Failed to setup virtual environment: {e}")
+            raise
+    
     def check_package_installed(self, package_name: str) -> Tuple[bool, Optional[str]]:
         """检查包是否已安装
         
@@ -74,16 +127,16 @@ class DependencyInstaller:
             (是否已安装, 版本号)
         """
         try:
-            # 处理包名映射
-            import_name = self._get_import_name(package_name)
-            module = importlib.import_module(import_name)
+            # 使用虚拟环境中的Python检查包
+            cmd = [str(self.python_executable), "-c", f"import {self._get_import_name(package_name)}; print(getattr({self._get_import_name(package_name)}, '__version__', 'unknown'))"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             
-            # 获取版本号
-            version = getattr(module, '__version__', 'unknown')
-            return True, version
-            
-        except ImportError:
-            return False, None
+            if result.returncode == 0:
+                version = result.stdout.strip()
+                return True, version
+            else:
+                return False, None
+                
         except Exception as e:
             logger.warning(f"Error checking package {package_name}: {e}")
             return False, None
@@ -114,15 +167,29 @@ class DependencyInstaller:
                 
             # 检查uv是否可用
             use_uv = self.use_uv
-            try:
-                import uv
-            except ImportError:
-                use_uv = False
-                
             if use_uv:
-                cmd = [sys.executable, "-m", "uv", "pip", "install", package_spec]
+                try:
+                    # 尝试使用uv命令
+                    uv_cmd = ["uv", "--version"]
+                    subprocess.run(uv_cmd, capture_output=True, timeout=10)
+                except (subprocess.TimeoutExpired, FileNotFoundError):
+                    # 如果uv命令不可用，尝试使用python -m uv
+                    try:
+                        uv_cmd = [str(self.python_executable), "-m", "uv", "--version"]
+                        subprocess.run(uv_cmd, capture_output=True, timeout=10)
+                    except (subprocess.TimeoutExpired, FileNotFoundError):
+                        use_uv = False
+                        logger.warning("uv not available, falling back to pip")
+            
+            if use_uv:
+                try:
+                    # 尝试直接使用uv命令
+                    cmd = ["uv", "pip", "install", package_spec, "--python", str(self.python_executable)]
+                except FileNotFoundError:
+                    # 回退到python -m uv
+                    cmd = [str(self.python_executable), "-m", "uv", "pip", "install", package_spec]
             else:
-                cmd = [sys.executable, "-m", "pip", "install", package_spec]
+                cmd = [str(self.python_executable), "-m", "pip", "install", package_spec]
                 
             logger.info(f"Installing {package_spec}...")
             
@@ -207,16 +274,29 @@ class DependencyInstaller:
         try:
             # 检查uv是否可用
             use_uv = self.use_uv
-            try:
-                import uv
-            except ImportError:
-                use_uv = False
-                logger.warning("uv module not found, falling back to pip")
-                
             if use_uv:
-                cmd = [sys.executable, "-m", "uv", "pip", "install", "-r", str(requirements_path)]
+                try:
+                    # 尝试使用uv命令
+                    uv_cmd = ["uv", "--version"]
+                    subprocess.run(uv_cmd, capture_output=True, timeout=10)
+                except (subprocess.TimeoutExpired, FileNotFoundError):
+                    # 如果uv命令不可用，尝试使用python -m uv
+                    try:
+                        uv_cmd = [str(self.python_executable), "-m", "uv", "--version"]
+                        subprocess.run(uv_cmd, capture_output=True, timeout=10)
+                    except (subprocess.TimeoutExpired, FileNotFoundError):
+                        use_uv = False
+                        logger.warning("uv not available, falling back to pip")
+            
+            if use_uv:
+                try:
+                    # 尝试直接使用uv命令
+                    cmd = ["uv", "pip", "install", "-r", str(requirements_path), "--python", str(self.python_executable)]
+                except FileNotFoundError:
+                    # 回退到python -m uv
+                    cmd = [str(self.python_executable), "-m", "uv", "pip", "install", "-r", str(requirements_path)]
             else:
-                cmd = [sys.executable, "-m", "pip", "install", "-r", str(requirements_path)]
+                cmd = [str(self.python_executable), "-m", "pip", "install", "-r", str(requirements_path)]
                 
             logger.info(f"Installing from {requirements_file}...")
             
@@ -252,9 +332,14 @@ class DependencyInstaller:
         """
         try:
             if self.use_uv:
-                cmd = [sys.executable, "-m", "uv", "pip", "install", "--upgrade", package_name]
+                try:
+                    # 尝试直接使用uv命令
+                    cmd = ["uv", "pip", "install", "--upgrade", package_name, "--python", str(self.python_executable)]
+                except FileNotFoundError:
+                    # 回退到python -m uv
+                    cmd = [str(self.python_executable), "-m", "uv", "pip", "install", "--upgrade", package_name]
             else:
-                cmd = [sys.executable, "-m", "pip", "install", "--upgrade", package_name]
+                cmd = [str(self.python_executable), "-m", "pip", "install", "--upgrade", package_name]
                 
             logger.info(f"Upgrading {package_name}...")
             
@@ -309,17 +394,18 @@ class DependencyInstaller:
         return name_mapping.get(package_name, package_name)
 
 # 模块级别函数
-def auto_install_dependencies(use_uv: bool = True, install_optional: bool = False) -> bool:
+def auto_install_dependencies(use_uv: bool = True, install_optional: bool = False, venv_path: str = ".venv") -> bool:
     """自动安装依赖的便捷函数
     
     Args:
         use_uv: 是否使用uv包管理器
         install_optional: 是否安装可选依赖
+        venv_path: 虚拟环境路径
         
     Returns:
         是否安装成功
     """
-    installer = DependencyInstaller(use_uv=use_uv)
+    installer = DependencyInstaller(use_uv=use_uv, venv_path=venv_path)
     
     # 首先尝试从requirements文件安装
     if installer.install_from_requirements():
@@ -335,13 +421,16 @@ def auto_install_dependencies(use_uv: bool = True, install_optional: bool = Fals
     
     return core_success
 
-def check_and_install_missing_dependencies() -> bool:
+def check_and_install_missing_dependencies(venv_path: str = ".venv") -> bool:
     """检查并安装缺失的依赖
     
+    Args:
+        venv_path: 虚拟环境路径
+        
     Returns:
         是否所有依赖都已安装
     """
-    installer = DependencyInstaller()
+    installer = DependencyInstaller(venv_path=venv_path)
     missing_packages = []
     
     # 检查核心依赖

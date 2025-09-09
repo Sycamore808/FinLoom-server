@@ -105,20 +105,63 @@ class NewsSentimentAnalyzer:
             "cuda" if torch.cuda.is_available() and self.config.use_gpu else "cpu"
         )
 
-        # 加载预训练模型
-        self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name)
-        self.model = AutoModelForSequenceClassification.from_pretrained(
-            self.config.model_name
-        ).to(self.device)
-        self.model.eval()
+        # 尝试加载预训练模型，如果失败则使用离线模式
+        self.model = None
+        self.tokenizer = None
+        self.offline_mode = False
+        
+        try:
+            # 尝试加载预训练模型
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.config.model_name,
+                local_files_only=False,
+                trust_remote_code=True
+            )
+            self.model = AutoModelForSequenceClassification.from_pretrained(
+                self.config.model_name,
+                local_files_only=False,
+                trust_remote_code=True
+            ).to(self.device)
+            self.model.eval()
+            logger.info(
+                f"NewsSentimentAnalyzer initialized with model: {self.config.model_name}"
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to load model {self.config.model_name}: {str(e)}. "
+                "Switching to offline mode with rule-based sentiment analysis."
+            )
+            self.offline_mode = True
+            # 初始化简单的词汇表用于离线情感分析
+            self._init_offline_sentiment_lexicon()
 
         # 缓存
         self.sentiment_cache: Dict[str, SentimentResult] = {}
         self.entity_cache: Dict[str, List[str]] = {}
 
-        logger.info(
-            f"Initialized news sentiment analyzer with model: {self.config.model_name}"
-        )
+    def _init_offline_sentiment_lexicon(self):
+        """初始化离线情感分析词汇表"""
+        # 正面情感词汇
+        self.positive_words = {
+            '上涨', '增长', '盈利', '利好', '突破', '强势', '看好', '推荐', '买入',
+            '收益', '利润', '成功', '优秀', '良好', '积极', '乐观', '强劲', '稳定',
+            '提升', '改善', '创新', '领先', '优势', '机会', '潜力', '发展', '进步'
+        }
+        
+        # 负面情感词汇
+        self.negative_words = {
+            '下跌', '下降', '亏损', '利空', '跌破', '弱势', '看空', '卖出', '风险',
+            '损失', '失败', '困难', '问题', '危机', '担忧', '悲观', '疲软', '波动',
+            '恶化', '衰退', '落后', '劣势', '威胁', '挑战', '压力', '困难', '问题'
+        }
+        
+        # 中性词汇
+        self.neutral_words = {
+            '维持', '保持', '稳定', '持平', '调整', '变化', '报告', '数据', '分析',
+            '市场', '股票', '公司', '行业', '经济', '政策', '影响', '因素', '情况'
+        }
+        
+        logger.info("Offline sentiment lexicon initialized")
 
     def analyze_news_sentiment(
         self, articles: List[NewsArticle], symbols: Optional[List[str]] = None
@@ -410,6 +453,9 @@ class NewsSentimentAnalyzer:
         Returns:
             情感结果列表
         """
+        if self.offline_mode:
+            return self._analyze_batch_offline(articles)
+        
         results = []
 
         # 准备输入文本
@@ -483,6 +529,102 @@ class NewsSentimentAnalyzer:
             self.sentiment_cache[article.article_id] = result
 
         return results
+
+    def _analyze_batch_offline(self, articles: List[NewsArticle]) -> List[SentimentResult]:
+        """离线模式批量分析文章
+
+        Args:
+            articles: 文章列表
+
+        Returns:
+            情感结果列表
+        """
+        results = []
+        
+        for article in articles:
+            # 组合标题和内容
+            text = f"{article.title} {article.content}"
+            
+            # 使用基于词汇表的情感分析
+            sentiment_score = self._calculate_offline_sentiment(text)
+            
+            # 确定情感标签
+            if sentiment_score > 0.1:
+                sentiment_label = "positive"
+                confidence = min(0.8, abs(sentiment_score))
+            elif sentiment_score < -0.1:
+                sentiment_label = "negative"
+                confidence = min(0.8, abs(sentiment_score))
+            else:
+                sentiment_label = "neutral"
+                confidence = 0.6
+            
+            # 提取关键词
+            keywords = self._extract_keywords_offline(text)
+            
+            # 创建结果
+            result = SentimentResult(
+                article_id=article.article_id,
+                overall_sentiment=sentiment_score,
+                sentiment_label=sentiment_label,
+                confidence=confidence,
+                entity_sentiments={},  # 离线模式暂不支持实体情感
+                aspect_sentiments={},  # 离线模式暂不支持方面情感
+                keywords=keywords,
+                timestamp=article.timestamp,
+            )
+            
+            results.append(result)
+            
+            # 缓存结果
+            self.sentiment_cache[article.article_id] = result
+        
+        return results
+
+    def _calculate_offline_sentiment(self, text: str) -> float:
+        """计算离线情感分数
+        
+        Args:
+            text: 输入文本
+            
+        Returns:
+            情感分数 (-1到1之间)
+        """
+        # 简单的基于词汇表的情感分析
+        positive_count = sum(1 for word in self.positive_words if word in text)
+        negative_count = sum(1 for word in self.negative_words if word in text)
+        neutral_count = sum(1 for word in self.neutral_words if word in text)
+        
+        total_words = positive_count + negative_count + neutral_count
+        
+        if total_words == 0:
+            return 0.0
+        
+        # 计算情感分数
+        sentiment_score = (positive_count - negative_count) / total_words
+        
+        # 限制在-1到1之间
+        return max(-1.0, min(1.0, sentiment_score))
+    
+    def _extract_keywords_offline(self, text: str) -> List[str]:
+        """离线模式提取关键词
+        
+        Args:
+            text: 输入文本
+            
+        Returns:
+            关键词列表
+        """
+        # 简单的关键词提取，基于情感词汇
+        keywords = []
+        
+        # 添加情感词汇作为关键词
+        for word in self.positive_words.union(self.negative_words).union(self.neutral_words):
+            if word in text:
+                keywords.append(word)
+        
+        # 限制关键词数量
+        return keywords[:10]
 
     def _analyze_single_article(self, article: NewsArticle) -> SentimentResult:
         """分析单篇文章

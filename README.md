@@ -38,19 +38,10 @@ FinLoom系统以 **FIN-R1 模型** 作为自然语言理解入口，支持用户
 
 ## 安装和使用
 
-### 环境准备
-
-1. 确保已安装Python 3.9+
-2. 安装依赖包:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### 运行系统
+运行系统
 
 ```bash
-export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-python main.py
+python3 start_web_app.py
 ```
 
 ### API访问
@@ -60,31 +51,36 @@ python main.py
 - `http://localhost:8000/` - API根路径
 - `http://localhost:8000/health` - 健康检查
 - `http://localhost:8000/api/v1/analyze` - 投资需求分析
+- `http://localhost:8000/docs` - api文档
 
-### 使用示例
+## 开发指南
 
-#### 1. API使用示例
+请参考 `docs/developer_guide/项目规范.md` 了解详细的开发规范和模块间通信协议。
+
+## 使用示例（未经验证）
+
+### 1. API使用示例
 
 ```bash
 # 运行API使用示例
 python examples/api_usage_example.py
 ```
 
-#### 2. 数据收集示例
+### 2. 数据收集示例
 
 ```bash
 # 运行数据收集示例
 python examples/data_collection_example.py
 ```
 
-#### 3. 回测示例
+### 3. 回测示例
 
 ```bash
 # 运行回测示例
 python examples/backtest_example.py
 ```
 
-#### 4. 投资需求分析API调用
+### 4. 投资需求分析API调用
 
 ```bash
 # 使用curl测试API
@@ -98,11 +94,3 @@ curl -X POST http://localhost:8000/api/v1/analyze \
 - `config/system_config.yaml` - 系统配置
 - `config/model_config.yaml` - 模型配置
 - `config/trading_config.yaml` - 交易配置
-
-## 示例
-
-查看 `examples/sample_strategy.py` 了解如何使用系统构建量化策略。
-
-## 开发指南
-
-请参考 `docs/developer_guide/项目规范.md` 了解详细的开发规范和模块间通信协议。

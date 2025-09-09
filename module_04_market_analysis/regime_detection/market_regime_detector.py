@@ -3,6 +3,7 @@
 识别和预测市场状态转换
 """
 
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
@@ -13,10 +14,21 @@ import pandas as pd
 from common.constants import TRADING_DAYS_PER_YEAR
 from common.exceptions import ModelError
 from common.logging_system import setup_logger
-from hmmlearn import hmm
-from scipy import stats
-from sklearn.mixture import GaussianMixture
-from sklearn.preprocessing import StandardScaler
+try:
+    from hmmlearn import hmm
+except ImportError:
+    hmm = None
+try:
+    from scipy import stats
+except ImportError:
+    stats = None
+
+try:
+    from sklearn.mixture import GaussianMixture
+    from sklearn.preprocessing import StandardScaler
+except ImportError:
+    GaussianMixture = None
+    StandardScaler = None
 
 logger = setup_logger("market_regime_detector")
 
@@ -106,15 +118,15 @@ class MarketRegimeDetector:
         self.config = config or RegimeDetectionConfig()
         self.hmm_model: Optional[hmm.GaussianHMM] = None
         self.gmm_model: Optional[GaussianMixture] = None
-        self.scaler = StandardScaler()
+        self.scaler = StandardScaler() if StandardScaler else None
         self.current_regime: Optional[RegimeState] = None
         self.regime_history: List[RegimeState] = []
         self.transition_matrix: Optional[np.ndarray] = None
 
         # 初始化模型
-        if self.config.use_hmm:
+        if self.config.use_hmm and hmm is not None:
             self._initialize_hmm()
-        if self.config.use_clustering:
+        if self.config.use_clustering and GaussianMixture is not None:
             self._initialize_gmm()
 
     def detect_market_regime(
@@ -144,13 +156,13 @@ class MarketRegimeDetector:
         probabilities.append(rule_prob)
 
         # HMM检测
-        if self.config.use_hmm and self.hmm_model is not None:
+        if self.config.use_hmm and self.hmm_model is not None and hmm is not None:
             hmm_regime, hmm_prob = self._hmm_detection(features)
             regimes.append(hmm_regime)
             probabilities.append(hmm_prob)
 
         # 聚类检测
-        if self.config.use_clustering and self.gmm_model is not None:
+        if self.config.use_clustering and self.gmm_model is not None and GaussianMixture is not None:
             cluster_regime, cluster_prob = self._clustering_detection(features)
             regimes.append(cluster_regime)
             probabilities.append(cluster_prob)
@@ -407,18 +419,24 @@ class MarketRegimeDetector:
 
     def _initialize_hmm(self) -> None:
         """初始化HMM模型"""
-        self.hmm_model = hmm.GaussianHMM(
-            n_components=self.config.n_regimes,
-            covariance_type="full",
-            n_iter=100,
-            random_state=42,
-        )
+        if hmm is not None:
+            self.hmm_model = hmm.GaussianHMM(
+                n_components=self.config.n_regimes,
+                covariance_type="full",
+                n_iter=100,
+                random_state=42,
+            )
+        else:
+            self.hmm_model = None
 
     def _initialize_gmm(self) -> None:
         """初始化GMM模型"""
-        self.gmm_model = GaussianMixture(
-            n_components=self.config.n_regimes, covariance_type="full", random_state=42
-        )
+        if GaussianMixture is not None:
+            self.gmm_model = GaussianMixture(
+                n_components=self.config.n_regimes, covariance_type="full", random_state=42
+            )
+        else:
+            self.gmm_model = None
 
     def _calculate_market_features(
         self, market_data: pd.DataFrame, symbols: Optional[List[str]] = None

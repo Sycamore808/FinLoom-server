@@ -56,9 +56,12 @@ asyncio-mqtt>=0.13.0
 aiofiles>=23.0.0
 
 # Data Processing
-pandas-ta>=0.3.14b0
+# pandas-ta>=0.3.14b0  # 暂时注释，版本兼容性问题
 ta>=0.10.2
 vectorbt>=0.25.0
+
+# Additional dependencies for FinLoom
+uuid>=1.30
 
 # Optimization
 optuna>=3.3.0

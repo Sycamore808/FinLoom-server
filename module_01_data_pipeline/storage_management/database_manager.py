@@ -1,13 +1,13 @@
 """
-数据库管理模块
+数据库管理器模块
 """
 
-import os
 import sqlite3
+import pandas as pd
+import json
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Union
-import pandas as pd
-import numpy as np
+from pathlib import Path
 
 from common.logging_system import setup_logger
 from common.exceptions import DataError
@@ -23,35 +23,47 @@ class DatabaseManager:
         Args:
             db_path: 数据库文件路径
         """
-        self.db_path = db_path
-        self.connection = None
-        
-        # 确保数据目录存在
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        
-        # 初始化数据库
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_database()
         
     def _init_database(self):
         """初始化数据库表结构"""
         try:
-            self.connection = sqlite3.connect(self.db_path)
-            cursor = self.connection.cursor()
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
             
-            # 创建市场数据表
+            # 创建股票基本信息表
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS market_data (
+                CREATE TABLE IF NOT EXISTS stock_info (
+                    symbol TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    sector TEXT,
+                    industry TEXT,
+                    market_cap REAL,
+                    pe_ratio REAL,
+                    pb_ratio REAL,
+                    dividend_yield REAL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            ''')
+            
+            # 创建股票价格数据表
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS stock_prices (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     symbol TEXT NOT NULL,
-                    timestamp DATETIME NOT NULL,
+                    date TEXT NOT NULL,
                     open REAL NOT NULL,
                     high REAL NOT NULL,
                     low REAL NOT NULL,
                     close REAL NOT NULL,
                     volume INTEGER NOT NULL,
-                    vwap REAL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(symbol, timestamp)
+                    amount REAL,
+                    pct_change REAL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(symbol, date)
                 )
             ''')
             
@@ -60,47 +72,41 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS technical_indicators (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     symbol TEXT NOT NULL,
-                    timestamp DATETIME NOT NULL,
-                    indicator_name TEXT NOT NULL,
-                    indicator_value REAL NOT NULL,
-                    parameters TEXT,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(symbol, timestamp, indicator_name)
+                    date TEXT NOT NULL,
+                    sma_5 REAL,
+                    sma_10 REAL,
+                    sma_20 REAL,
+                    sma_50 REAL,
+                    ema_12 REAL,
+                    ema_26 REAL,
+                    rsi REAL,
+                    macd REAL,
+                    macd_signal REAL,
+                    macd_histogram REAL,
+                    bb_upper REAL,
+                    bb_middle REAL,
+                    bb_lower REAL,
+                    atr REAL,
+                    stoch_k REAL,
+                    stoch_d REAL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(symbol, date)
                 )
             ''')
             
             # 创建交易信号表
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS trading_signals (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    signal_id TEXT UNIQUE NOT NULL,
+                    signal_id TEXT PRIMARY KEY,
                     symbol TEXT NOT NULL,
-                    timestamp DATETIME NOT NULL,
-                    action TEXT NOT NULL,
-                    quantity INTEGER NOT NULL,
-                    price REAL NOT NULL,
-                    confidence REAL NOT NULL,
                     strategy_name TEXT NOT NULL,
-                    metadata TEXT,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # 创建持仓表
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS positions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    position_id TEXT UNIQUE NOT NULL,
-                    symbol TEXT NOT NULL,
+                    signal_type TEXT NOT NULL,
+                    confidence REAL NOT NULL,
+                    price REAL NOT NULL,
                     quantity INTEGER NOT NULL,
-                    avg_cost REAL NOT NULL,
-                    current_price REAL NOT NULL,
-                    market_value REAL NOT NULL,
-                    unrealized_pnl REAL NOT NULL,
-                    realized_pnl REAL NOT NULL,
-                    open_time DATETIME NOT NULL,
-                    last_update DATETIME NOT NULL,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    timestamp TEXT NOT NULL,
+                    metadata TEXT,
+                    created_at TEXT NOT NULL
                 )
             ''')
             
@@ -108,10 +114,10 @@ class DatabaseManager:
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS backtest_results (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    backtest_id TEXT UNIQUE NOT NULL,
                     strategy_name TEXT NOT NULL,
-                    start_date DATETIME NOT NULL,
-                    end_date DATETIME NOT NULL,
+                    symbol TEXT NOT NULL,
+                    start_date TEXT NOT NULL,
+                    end_date TEXT NOT NULL,
                     initial_capital REAL NOT NULL,
                     final_capital REAL NOT NULL,
                     total_return REAL NOT NULL,
@@ -122,303 +128,212 @@ class DatabaseManager:
                     win_rate REAL NOT NULL,
                     profit_factor REAL NOT NULL,
                     total_trades INTEGER NOT NULL,
-                    performance_metrics TEXT,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    equity_curve TEXT,
+                    trades TEXT,
+                    created_at TEXT NOT NULL
                 )
             ''')
             
             # 创建索引
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_market_data_symbol_time ON market_data(symbol, timestamp)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_technical_indicators_symbol_time ON technical_indicators(symbol, timestamp)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_trading_signals_symbol_time ON trading_signals(symbol, timestamp)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_positions_symbol ON positions(symbol)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_stock_prices_symbol_date ON stock_prices(symbol, date)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_technical_indicators_symbol_date ON technical_indicators(symbol, date)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_trading_signals_symbol ON trading_signals(symbol)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_trading_signals_timestamp ON trading_signals(timestamp)')
             
-            self.connection.commit()
+            conn.commit()
+            conn.close()
             logger.info("Database initialized successfully")
             
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
             raise DataError(f"Database initialization failed: {e}")
     
-    def insert_market_data(self, data: pd.DataFrame, symbol: str) -> bool:
-        """插入市场数据
+    def save_stock_info(self, symbol: str, name: str, sector: str = None, 
+                       industry: str = None, **kwargs):
+        """保存股票基本信息
         
         Args:
-            data: 市场数据DataFrame
             symbol: 股票代码
-            
-        Returns:
-            是否插入成功
+            name: 股票名称
+            sector: 行业板块
+            industry: 细分行业
+            **kwargs: 其他信息
         """
         try:
-            cursor = self.connection.cursor()
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
             
-            # 准备数据
-            records = []
-            for timestamp, row in data.iterrows():
-                # 转换时间戳为字符串格式
-                timestamp_str = timestamp.strftime('%Y-%m-%d %H:%M:%S') if hasattr(timestamp, 'strftime') else str(timestamp)
-                record = (
+            now = datetime.now().isoformat()
+            cursor.execute('''
+                INSERT OR REPLACE INTO stock_info 
+                (symbol, name, sector, industry, market_cap, pe_ratio, pb_ratio, 
+                 dividend_yield, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                symbol, name, sector, industry,
+                kwargs.get('market_cap'),
+                kwargs.get('pe_ratio'),
+                kwargs.get('pb_ratio'),
+                kwargs.get('dividend_yield'),
+                now, now
+            ))
+            
+            conn.commit()
+            conn.close()
+            logger.info(f"Saved stock info for {symbol}")
+            
+        except Exception as e:
+            logger.error(f"Failed to save stock info for {symbol}: {e}")
+            raise DataError(f"Stock info save failed: {e}")
+    
+    def save_stock_prices(self, symbol: str, df: pd.DataFrame):
+        """保存股票价格数据
+        
+        Args:
+            symbol: 股票代码
+            df: 价格数据DataFrame
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            now = datetime.now().isoformat()
+            
+            for _, row in df.iterrows():
+                cursor.execute('''
+                    INSERT OR REPLACE INTO stock_prices 
+                    (symbol, date, open, high, low, close, volume, amount, 
+                     pct_change, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
                     symbol,
-                    timestamp_str,
+                    row['date'].strftime('%Y-%m-%d') if hasattr(row['date'], 'strftime') else str(row['date']),
                     row.get('open', 0.0),
                     row.get('high', 0.0),
                     row.get('low', 0.0),
                     row.get('close', 0.0),
                     row.get('volume', 0),
-                    row.get('vwap', None)
-                )
-                records.append(record)
+                    row.get('amount', 0.0),
+                    row.get('pct_change', 0.0),
+                    now
+                ))
             
-            # 批量插入
-            cursor.executemany('''
-                INSERT OR REPLACE INTO market_data 
-                (symbol, timestamp, open, high, low, close, volume, vwap)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', records)
-            
-            self.connection.commit()
-            logger.info(f"Inserted {len(records)} market data records for {symbol}")
-            return True
+            conn.commit()
+            conn.close()
+            logger.info(f"Saved {len(df)} price records for {symbol}")
             
         except Exception as e:
-            logger.error(f"Failed to insert market data for {symbol}: {e}")
-            return False
+            logger.error(f"Failed to save stock prices for {symbol}: {e}")
+            raise DataError(f"Stock prices save failed: {e}")
     
-    def get_market_data(
-        self, 
-        symbol: str, 
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
-    ) -> pd.DataFrame:
-        """获取市场数据
+    def save_technical_indicators(self, symbol: str, df: pd.DataFrame):
+        """保存技术指标数据
         
         Args:
             symbol: 股票代码
-            start_date: 开始日期
-            end_date: 结束日期
-            
-        Returns:
-            市场数据DataFrame
+            df: 技术指标数据DataFrame
         """
         try:
-            query = "SELECT * FROM market_data WHERE symbol = ?"
-            params = [symbol]
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
             
-            if start_date:
-                query += " AND timestamp >= ?"
-                params.append(start_date)
+            now = datetime.now().isoformat()
             
-            if end_date:
-                query += " AND timestamp <= ?"
-                params.append(end_date)
+            for _, row in df.iterrows():
+                cursor.execute('''
+                    INSERT OR REPLACE INTO technical_indicators 
+                    (symbol, date, sma_5, sma_10, sma_20, sma_50, ema_12, ema_26,
+                     rsi, macd, macd_signal, macd_histogram, bb_upper, bb_middle, 
+                     bb_lower, atr, stoch_k, stoch_d, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    symbol,
+                    row['date'].strftime('%Y-%m-%d') if hasattr(row['date'], 'strftime') else str(row['date']),
+                    row.get('sma_5'),
+                    row.get('sma_10'),
+                    row.get('sma_20'),
+                    row.get('sma_50'),
+                    row.get('ema_12'),
+                    row.get('ema_26'),
+                    row.get('rsi'),
+                    row.get('macd'),
+                    row.get('macd_signal'),
+                    row.get('macd_histogram'),
+                    row.get('bb_upper'),
+                    row.get('bb_middle'),
+                    row.get('bb_lower'),
+                    row.get('atr'),
+                    row.get('stoch_k'),
+                    row.get('stoch_d'),
+                    now
+                ))
             
-            query += " ORDER BY timestamp"
-            
-            df = pd.read_sql_query(query, self.connection, params=params, parse_dates=['timestamp'])
-            df.set_index('timestamp', inplace=True)
-            
-            logger.info(f"Retrieved {len(df)} market data records for {symbol}")
-            return df
-            
-        except Exception as e:
-            logger.error(f"Failed to get market data for {symbol}: {e}")
-            return pd.DataFrame()
-    
-    def insert_technical_indicators(
-        self, 
-        symbol: str, 
-        indicators: Dict[str, pd.Series]
-    ) -> bool:
-        """插入技术指标数据
-        
-        Args:
-            symbol: 股票代码
-            indicators: 技术指标字典
-            
-        Returns:
-            是否插入成功
-        """
-        try:
-            cursor = self.connection.cursor()
-            
-            records = []
-            for indicator_name, series in indicators.items():
-                for timestamp, value in series.dropna().items():
-                    record = (
-                        symbol,
-                        timestamp,
-                        indicator_name,
-                        float(value),
-                        None  # parameters
-                    )
-                    records.append(record)
-            
-            # 批量插入
-            cursor.executemany('''
-                INSERT OR REPLACE INTO technical_indicators 
-                (symbol, timestamp, indicator_name, indicator_value, parameters)
-                VALUES (?, ?, ?, ?, ?)
-            ''', records)
-            
-            self.connection.commit()
-            logger.info(f"Inserted {len(records)} technical indicator records for {symbol}")
-            return True
+            conn.commit()
+            conn.close()
+            logger.info(f"Saved {len(df)} technical indicator records for {symbol}")
             
         except Exception as e:
-            logger.error(f"Failed to insert technical indicators for {symbol}: {e}")
-            return False
+            logger.error(f"Failed to save technical indicators for {symbol}: {e}")
+            raise DataError(f"Technical indicators save failed: {e}")
     
-    def get_technical_indicators(
-        self, 
-        symbol: str, 
-        indicator_names: Optional[List[str]] = None,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
-    ) -> pd.DataFrame:
-        """获取技术指标数据
-        
-        Args:
-            symbol: 股票代码
-            indicator_names: 指标名称列表
-            start_date: 开始日期
-            end_date: 结束日期
-            
-        Returns:
-            技术指标DataFrame
-        """
-        try:
-            query = "SELECT * FROM technical_indicators WHERE symbol = ?"
-            params = [symbol]
-            
-            if indicator_names:
-                placeholders = ','.join(['?' for _ in indicator_names])
-                query += f" AND indicator_name IN ({placeholders})"
-                params.extend(indicator_names)
-            
-            if start_date:
-                query += " AND timestamp >= ?"
-                params.append(start_date)
-            
-            if end_date:
-                query += " AND timestamp <= ?"
-                params.append(end_date)
-            
-            query += " ORDER BY timestamp, indicator_name"
-            
-            df = pd.read_sql_query(query, self.connection, params=params, parse_dates=['timestamp'])
-            
-            if not df.empty:
-                # 透视表，将指标名称作为列
-                df = df.pivot_table(
-                    index='timestamp', 
-                    columns='indicator_name', 
-                    values='indicator_value'
-                )
-            
-            logger.info(f"Retrieved technical indicators for {symbol}")
-            return df
-            
-        except Exception as e:
-            logger.error(f"Failed to get technical indicators for {symbol}: {e}")
-            return pd.DataFrame()
-    
-    def insert_trading_signal(self, signal_data: Dict[str, Any]) -> bool:
-        """插入交易信号
+    def save_trading_signal(self, signal_data: Dict[str, Any]):
+        """保存交易信号
         
         Args:
             signal_data: 信号数据字典
-            
-        Returns:
-            是否插入成功
         """
         try:
-            cursor = self.connection.cursor()
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
             
-            record = (
-                signal_data['signal_id'],
-                signal_data['symbol'],
-                signal_data['timestamp'],
-                signal_data['action'],
-                signal_data['quantity'],
-                signal_data['price'],
-                signal_data['confidence'],
-                signal_data['strategy_name'],
-                str(signal_data.get('metadata', {}))
-            )
-            
+            now = datetime.now().isoformat()
             cursor.execute('''
                 INSERT OR REPLACE INTO trading_signals 
-                (signal_id, symbol, timestamp, action, quantity, price, confidence, strategy_name, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', record)
+                (signal_id, symbol, strategy_name, signal_type, confidence, 
+                 price, quantity, timestamp, metadata, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                signal_data['signal_id'],
+                signal_data['symbol'],
+                signal_data['strategy_name'],
+                signal_data['signal_type'],
+                signal_data['confidence'],
+                signal_data['price'],
+                signal_data['quantity'],
+                signal_data['timestamp'],
+                json.dumps(signal_data.get('metadata', {})),
+                now
+            ))
             
-            self.connection.commit()
-            logger.info(f"Inserted trading signal: {signal_data['signal_id']}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to insert trading signal: {e}")
-            return False
-    
-    def get_trading_signals(
-        self, 
-        symbol: Optional[str] = None,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
-    ) -> pd.DataFrame:
-        """获取交易信号
-        
-        Args:
-            symbol: 股票代码
-            start_date: 开始日期
-            end_date: 结束日期
-            
-        Returns:
-            交易信号DataFrame
-        """
-        try:
-            query = "SELECT * FROM trading_signals WHERE 1=1"
-            params = []
-            
-            if symbol:
-                query += " AND symbol = ?"
-                params.append(symbol)
-            
-            if start_date:
-                query += " AND timestamp >= ?"
-                params.append(start_date)
-            
-            if end_date:
-                query += " AND timestamp <= ?"
-                params.append(end_date)
-            
-            query += " ORDER BY timestamp"
-            
-            df = pd.read_sql_query(query, self.connection, params=params, parse_dates=['timestamp'])
-            
-            logger.info(f"Retrieved {len(df)} trading signals")
-            return df
+            conn.commit()
+            conn.close()
+            logger.info(f"Saved trading signal: {signal_data['signal_id']}")
             
         except Exception as e:
-            logger.error(f"Failed to get trading signals: {e}")
-            return pd.DataFrame()
+            logger.error(f"Failed to save trading signal: {e}")
+            raise DataError(f"Trading signal save failed: {e}")
     
-    def insert_backtest_result(self, result_data: Dict[str, Any]) -> bool:
-        """插入回测结果
+    def save_backtest_result(self, result_data: Dict[str, Any]):
+        """保存回测结果
         
         Args:
-            result_data: 回测结果数据
-            
-        Returns:
-            是否插入成功
+            result_data: 回测结果数据字典
         """
         try:
-            cursor = self.connection.cursor()
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
             
-            record = (
-                result_data['backtest_id'],
+            now = datetime.now().isoformat()
+            cursor.execute('''
+                INSERT INTO backtest_results 
+                (strategy_name, symbol, start_date, end_date, initial_capital, 
+                 final_capital, total_return, annualized_return, volatility, 
+                 sharpe_ratio, max_drawdown, win_rate, profit_factor, total_trades,
+                 equity_curve, trades, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
                 result_data['strategy_name'],
+                result_data['symbol'],
                 result_data['start_date'],
                 result_data['end_date'],
                 result_data['initial_capital'],
@@ -431,97 +346,267 @@ class DatabaseManager:
                 result_data['win_rate'],
                 result_data['profit_factor'],
                 result_data['total_trades'],
-                str(result_data.get('performance_metrics', {}))
-            )
+                json.dumps(result_data.get('equity_curve', [])),
+                json.dumps(result_data.get('trades', [])),
+                now
+            ))
             
-            cursor.execute('''
-                INSERT OR REPLACE INTO backtest_results 
-                (backtest_id, strategy_name, start_date, end_date, initial_capital, 
-                 final_capital, total_return, annualized_return, volatility, 
-                 sharpe_ratio, max_drawdown, win_rate, profit_factor, total_trades, performance_metrics)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', record)
-            
-            self.connection.commit()
-            logger.info(f"Inserted backtest result: {result_data['backtest_id']}")
-            return True
+            conn.commit()
+            conn.close()
+            logger.info(f"Saved backtest result for {result_data['symbol']}")
             
         except Exception as e:
-            logger.error(f"Failed to insert backtest result: {e}")
-            return False
+            logger.error(f"Failed to save backtest result: {e}")
+            raise DataError(f"Backtest result save failed: {e}")
     
-    def get_backtest_results(
-        self, 
-        strategy_name: Optional[str] = None,
-        limit: int = 100
-    ) -> pd.DataFrame:
-        """获取回测结果
+    def get_stock_prices(self, symbol: str, start_date: str = None, 
+                        end_date: str = None) -> pd.DataFrame:
+        """获取股票价格数据
         
         Args:
-            strategy_name: 策略名称
-            limit: 限制数量
+            symbol: 股票代码
+            start_date: 开始日期
+            end_date: 结束日期
             
         Returns:
-            回测结果DataFrame
+            价格数据DataFrame
         """
         try:
-            query = "SELECT * FROM backtest_results WHERE 1=1"
+            conn = sqlite3.connect(self.db_path)
+            
+            query = "SELECT * FROM stock_prices WHERE symbol = ?"
+            params = [symbol]
+            
+            if start_date:
+                query += " AND date >= ?"
+                params.append(start_date)
+            
+            if end_date:
+                query += " AND date <= ?"
+                params.append(end_date)
+            
+            query += " ORDER BY date"
+            
+            df = pd.read_sql_query(query, conn, params=params)
+            conn.close()
+            
+            if not df.empty:
+                df['date'] = pd.to_datetime(df['date'])
+                df.set_index('date', inplace=True)
+            
+            logger.info(f"Retrieved {len(df)} price records for {symbol}")
+            return df
+            
+        except Exception as e:
+            logger.error(f"Failed to get stock prices for {symbol}: {e}")
+            return pd.DataFrame()
+    
+    def get_technical_indicators(self, symbol: str, start_date: str = None, 
+                               end_date: str = None) -> pd.DataFrame:
+        """获取技术指标数据
+        
+        Args:
+            symbol: 股票代码
+            start_date: 开始日期
+            end_date: 结束日期
+            
+        Returns:
+            技术指标数据DataFrame
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            
+            query = "SELECT * FROM technical_indicators WHERE symbol = ?"
+            params = [symbol]
+            
+            if start_date:
+                query += " AND date >= ?"
+                params.append(start_date)
+            
+            if end_date:
+                query += " AND date <= ?"
+                params.append(end_date)
+            
+            query += " ORDER BY date"
+            
+            df = pd.read_sql_query(query, conn, params=params)
+            conn.close()
+            
+            if not df.empty:
+                df['date'] = pd.to_datetime(df['date'])
+                df.set_index('date', inplace=True)
+            
+            logger.info(f"Retrieved {len(df)} technical indicator records for {symbol}")
+            return df
+            
+        except Exception as e:
+            logger.error(f"Failed to get technical indicators for {symbol}: {e}")
+            return pd.DataFrame()
+    
+    def get_trading_signals(self, symbol: str = None, strategy_name: str = None,
+                          start_date: str = None, end_date: str = None) -> List[Dict[str, Any]]:
+        """获取交易信号
+        
+        Args:
+            symbol: 股票代码
+            strategy_name: 策略名称
+            start_date: 开始日期
+            end_date: 结束日期
+            
+        Returns:
+            交易信号列表
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            query = "SELECT * FROM trading_signals WHERE 1=1"
             params = []
+            
+            if symbol:
+                query += " AND symbol = ?"
+                params.append(symbol)
             
             if strategy_name:
                 query += " AND strategy_name = ?"
                 params.append(strategy_name)
             
-            query += " ORDER BY created_at DESC LIMIT ?"
-            params.append(limit)
+            if start_date:
+                query += " AND timestamp >= ?"
+                params.append(start_date)
             
-            df = pd.read_sql_query(query, self.connection, params=params, parse_dates=['start_date', 'end_date', 'created_at'])
+            if end_date:
+                query += " AND timestamp <= ?"
+                params.append(end_date)
             
-            logger.info(f"Retrieved {len(df)} backtest results")
-            return df
+            query += " ORDER BY timestamp DESC"
+            
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            
+            # 获取列名
+            columns = [description[0] for description in cursor.description]
+            
+            # 转换为字典列表
+            signals = []
+            for row in rows:
+                signal = dict(zip(columns, row))
+                if signal['metadata']:
+                    signal['metadata'] = json.loads(signal['metadata'])
+                signals.append(signal)
+            
+            conn.close()
+            logger.info(f"Retrieved {len(signals)} trading signals")
+            return signals
+            
+        except Exception as e:
+            logger.error(f"Failed to get trading signals: {e}")
+            return []
+    
+    def get_backtest_results(self, symbol: str = None, strategy_name: str = None) -> List[Dict[str, Any]]:
+        """获取回测结果
+        
+        Args:
+            symbol: 股票代码
+            strategy_name: 策略名称
+            
+        Returns:
+            回测结果列表
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            query = "SELECT * FROM backtest_results WHERE 1=1"
+            params = []
+            
+            if symbol:
+                query += " AND symbol = ?"
+                params.append(symbol)
+            
+            if strategy_name:
+                query += " AND strategy_name = ?"
+                params.append(strategy_name)
+            
+            query += " ORDER BY created_at DESC"
+            
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            
+            # 获取列名
+            columns = [description[0] for description in cursor.description]
+            
+            # 转换为字典列表
+            results = []
+            for row in rows:
+                result = dict(zip(columns, row))
+                if result['equity_curve']:
+                    result['equity_curve'] = json.loads(result['equity_curve'])
+                if result['trades']:
+                    result['trades'] = json.loads(result['trades'])
+                results.append(result)
+            
+            conn.close()
+            logger.info(f"Retrieved {len(results)} backtest results")
+            return results
             
         except Exception as e:
             logger.error(f"Failed to get backtest results: {e}")
-            return pd.DataFrame()
+            return []
     
-    def execute_query(self, query: str, params: Optional[List] = None) -> pd.DataFrame:
-        """执行自定义查询
+    def get_database_stats(self) -> Dict[str, Any]:
+        """获取数据库统计信息
         
-        Args:
-            query: SQL查询语句
-            params: 查询参数
-            
         Returns:
-            查询结果DataFrame
+            数据库统计信息字典
         """
         try:
-            df = pd.read_sql_query(query, self.connection, params=params or [])
-            logger.info(f"Executed query, returned {len(df)} rows")
-            return df
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            stats = {}
+            
+            # 获取各表的记录数
+            tables = ['stock_info', 'stock_prices', 'technical_indicators', 
+                     'trading_signals', 'backtest_results']
+            
+            for table in tables:
+                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                count = cursor.fetchone()[0]
+                stats[f"{table}_count"] = count
+            
+            # 获取数据库文件大小
+            stats['database_size_mb'] = self.db_path.stat().st_size / (1024 * 1024)
+            
+            # 获取最后更新时间
+            cursor.execute("SELECT MAX(created_at) FROM stock_prices")
+            last_update = cursor.fetchone()[0]
+            stats['last_update'] = last_update
+            
+            conn.close()
+            return stats
             
         except Exception as e:
-            logger.error(f"Failed to execute query: {e}")
-            return pd.DataFrame()
+            logger.error(f"Failed to get database stats: {e}")
+            return {}
+
+# 便捷函数
+def create_database_manager(db_path: str = "data/finloom.db") -> DatabaseManager:
+    """创建数据库管理器的便捷函数
     
-    def close(self):
-        """关闭数据库连接"""
-        if self.connection:
-            self.connection.close()
-            logger.info("Database connection closed")
-    
-    def __enter__(self):
-        """上下文管理器入口"""
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """上下文管理器出口"""
-        self.close()
+    Args:
+        db_path: 数据库文件路径
+        
+    Returns:
+        数据库管理器实例
+    """
+    return DatabaseManager(db_path)
 
 # 全局数据库管理器实例
-_global_db_manager: Optional[DatabaseManager] = None
+_global_db_manager = None
 
 def get_database_manager(db_path: str = "data/finloom.db") -> DatabaseManager:
-    """获取全局数据库管理器实例
+    """获取全局数据库管理器实例（单例模式）
     
     Args:
         db_path: 数据库文件路径
