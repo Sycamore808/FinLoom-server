@@ -1,468 +1,262 @@
 """
-技术指标特征提取器模块
-计算各类技术分析指标
+技术指标计算模块
 """
-
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
-import talib
-from common.exceptions import DataError
+from typing import Dict, List, Optional, Union
+from dataclasses import dataclass
+
 from common.logging_system import setup_logger
+from common.exceptions import DataError
 
 logger = setup_logger("technical_indicators")
 
-
 @dataclass
 class IndicatorConfig:
-    """指标配置"""
-
-    ma_periods: List[int] = None
-    rsi_period: int = 14
-    macd_fast: int = 12
-    macd_slow: int = 26
-    macd_signal: int = 9
-    bb_period: int = 20
-    bb_std: float = 2.0
-    atr_period: int = 14
-    adx_period: int = 14
-    cci_period: int = 20
-
-    def __post_init__(self):
-        """初始化后处理"""
-        if self.ma_periods is None:
-            self.ma_periods = [5, 10, 20, 50, 100, 200]
-
+    """技术指标配置"""
+    name: str
+    parameters: Dict[str, Union[int, float]]
+    enabled: bool = True
 
 class TechnicalIndicators:
-    """技术指标计算器"""
-
-    # 指标分类
-    INDICATOR_CATEGORIES = {
-        "trend": ["sma", "ema", "wma", "macd", "adx", "sar"],
-        "momentum": ["rsi", "stoch", "williams", "roc", "mom", "cci"],
-        "volatility": ["bb", "atr", "natr", "trange"],
-        "volume": ["obv", "ad", "adosc", "mfi", "vwap"],
-        "pattern": ["cdl_patterns", "support_resistance"],
-    }
-
-    def __init__(self, config: Optional[IndicatorConfig] = None):
-        """初始化技术指标计算器
-
+    """技术指标计算器类"""
+    
+    def __init__(self):
+        """初始化技术指标计算器"""
+        self.indicators = {}
+        
+    def calculate_sma(self, data: pd.Series, period: int) -> pd.Series:
+        """计算简单移动平均线
+        
         Args:
-            config: 指标配置
+            data: 价格数据
+            period: 周期
+            
+        Returns:
+            简单移动平均线
         """
-        self.config = config or IndicatorConfig()
-        self.calculated_indicators: Dict[str, pd.DataFrame] = {}
-
-    def calculate_all_indicators(
-        self, df: pd.DataFrame, categories: Optional[List[str]] = None
-    ) -> pd.DataFrame:
-        """计算所有指标
-
+        try:
+            return data.rolling(window=period).mean()
+        except Exception as e:
+            logger.error(f"Failed to calculate SMA: {e}")
+            raise DataError(f"SMA calculation failed: {e}")
+    
+    def calculate_ema(self, data: pd.Series, period: int) -> pd.Series:
+        """计算指数移动平均线
+        
         Args:
-            df: OHLCV数据DataFrame
-            categories: 要计算的指标类别列表
-
+            data: 价格数据
+            period: 周期
+            
+        Returns:
+            指数移动平均线
+        """
+        try:
+            return data.ewm(span=period).mean()
+        except Exception as e:
+            logger.error(f"Failed to calculate EMA: {e}")
+            raise DataError(f"EMA calculation failed: {e}")
+    
+    def calculate_rsi(self, data: pd.Series, period: int = 14) -> pd.Series:
+        """计算相对强弱指数
+        
+        Args:
+            data: 价格数据
+            period: 周期
+            
+        Returns:
+            RSI指标
+        """
+        try:
+            delta = data.diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
+            return rsi
+        except Exception as e:
+            logger.error(f"Failed to calculate RSI: {e}")
+            raise DataError(f"RSI calculation failed: {e}")
+    
+    def calculate_macd(self, data: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> Dict[str, pd.Series]:
+        """计算MACD指标
+        
+        Args:
+            data: 价格数据
+            fast: 快线周期
+            slow: 慢线周期
+            signal: 信号线周期
+            
+        Returns:
+            MACD指标字典
+        """
+        try:
+            ema_fast = self.calculate_ema(data, fast)
+            ema_slow = self.calculate_ema(data, slow)
+            macd_line = ema_fast - ema_slow
+            signal_line = self.calculate_ema(macd_line, signal)
+            histogram = macd_line - signal_line
+            
+            return {
+                'macd': macd_line,
+                'signal': signal_line,
+                'histogram': histogram
+            }
+        except Exception as e:
+            logger.error(f"Failed to calculate MACD: {e}")
+            raise DataError(f"MACD calculation failed: {e}")
+    
+    def calculate_bollinger_bands(self, data: pd.Series, period: int = 20, std_dev: float = 2.0) -> Dict[str, pd.Series]:
+        """计算布林带
+        
+        Args:
+            data: 价格数据
+            period: 周期
+            std_dev: 标准差倍数
+            
+        Returns:
+            布林带指标字典
+        """
+        try:
+            sma = self.calculate_sma(data, period)
+            std = data.rolling(window=period).std()
+            upper_band = sma + (std * std_dev)
+            lower_band = sma - (std * std_dev)
+            
+            return {
+                'upper': upper_band,
+                'middle': sma,
+                'lower': lower_band
+            }
+        except Exception as e:
+            logger.error(f"Failed to calculate Bollinger Bands: {e}")
+            raise DataError(f"Bollinger Bands calculation failed: {e}")
+    
+    def calculate_atr(self, high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+        """计算平均真实波幅
+        
+        Args:
+            high: 最高价
+            low: 最低价
+            close: 收盘价
+            period: 周期
+            
+        Returns:
+            ATR指标
+        """
+        try:
+            tr1 = high - low
+            tr2 = abs(high - close.shift(1))
+            tr3 = abs(low - close.shift(1))
+            tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+            atr = tr.rolling(window=period).mean()
+            return atr
+        except Exception as e:
+            logger.error(f"Failed to calculate ATR: {e}")
+            raise DataError(f"ATR calculation failed: {e}")
+    
+    def calculate_stochastic(self, high: pd.Series, low: pd.Series, close: pd.Series, 
+                           k_period: int = 14, d_period: int = 3) -> Dict[str, pd.Series]:
+        """计算随机指标
+        
+        Args:
+            high: 最高价
+            low: 最低价
+            close: 收盘价
+            k_period: K值周期
+            d_period: D值周期
+            
+        Returns:
+            随机指标字典
+        """
+        try:
+            lowest_low = low.rolling(window=k_period).min()
+            highest_high = high.rolling(window=k_period).max()
+            k_percent = 100 * ((close - lowest_low) / (highest_high - lowest_low))
+            d_percent = k_percent.rolling(window=d_period).mean()
+            
+            return {
+                'k': k_percent,
+                'd': d_percent
+            }
+        except Exception as e:
+            logger.error(f"Failed to calculate Stochastic: {e}")
+            raise DataError(f"Stochastic calculation failed: {e}")
+    
+    def calculate_all_indicators(self, ohlcv_data: pd.DataFrame) -> pd.DataFrame:
+        """计算所有技术指标
+        
+        Args:
+            ohlcv_data: OHLCV数据
+            
         Returns:
             包含所有指标的DataFrame
         """
-        if categories is None:
-            categories = list(self.INDICATOR_CATEGORIES.keys())
-
-        result_dfs = [df.copy()]
-
-        for category in categories:
-            if category == "trend":
-                result_dfs.append(self.calculate_trend_indicators(df))
-            elif category == "momentum":
-                result_dfs.append(self.calculate_momentum_indicators(df))
-            elif category == "volatility":
-                result_dfs.append(self.calculate_volatility_indicators(df))
-            elif category == "volume":
-                result_dfs.append(self.calculate_volume_indicators(df))
-            elif category == "pattern":
-                result_dfs.append(self.calculate_pattern_indicators(df))
-
-        # 合并所有指标
-        result = pd.concat(result_dfs, axis=1)
-
-        # 删除重复列
-        result = result.loc[:, ~result.columns.duplicated()]
-
-        logger.info(f"Calculated {len(result.columns)} technical indicators")
-        return result
-
-    def calculate_trend_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """计算趋势指标
-
-        Args:
-            df: OHLCV数据
-
-        Returns:
-            趋势指标DataFrame
-        """
-        indicators = pd.DataFrame(index=df.index)
-
-        # 移动平均线
-        for period in self.config.ma_periods:
-            indicators[f"sma_{period}"] = talib.SMA(df["close"], timeperiod=period)
-            indicators[f"ema_{period}"] = talib.EMA(df["close"], timeperiod=period)
-            indicators[f"wma_{period}"] = talib.WMA(df["close"], timeperiod=period)
-
-        # MACD
-        macd, macd_signal, macd_hist = talib.MACD(
-            df["close"],
-            fastperiod=self.config.macd_fast,
-            slowperiod=self.config.macd_slow,
-            signalperiod=self.config.macd_signal,
-        )
-        indicators["macd"] = macd
-        indicators["macd_signal"] = macd_signal
-        indicators["macd_hist"] = macd_hist
-
-        # ADX (Average Directional Index)
-        indicators["adx"] = talib.ADX(
-            df["high"], df["low"], df["close"], timeperiod=self.config.adx_period
-        )
-        indicators["plus_di"] = talib.PLUS_DI(
-            df["high"], df["low"], df["close"], timeperiod=self.config.adx_period
-        )
-        indicators["minus_di"] = talib.MINUS_DI(
-            df["high"], df["low"], df["close"], timeperiod=self.config.adx_period
-        )
-
-        # SAR (Parabolic Stop and Reverse)
-        indicators["sar"] = talib.SAR(df["high"], df["low"])
-
-        # 趋势线斜率
-        for period in [20, 50]:
-            indicators[f"trend_slope_{period}"] = self._calculate_trend_slope(
-                df["close"], period
+        try:
+            result = ohlcv_data.copy()
+            
+            # 确保有必要的列
+            required_columns = ['open', 'high', 'low', 'close', 'volume']
+            for col in required_columns:
+                if col not in ohlcv_data.columns:
+                    raise DataError(f"Missing required column: {col}")
+            
+            # 计算各种指标
+            result['sma_5'] = self.calculate_sma(ohlcv_data['close'], 5)
+            result['sma_10'] = self.calculate_sma(ohlcv_data['close'], 10)
+            result['sma_20'] = self.calculate_sma(ohlcv_data['close'], 20)
+            result['sma_50'] = self.calculate_sma(ohlcv_data['close'], 50)
+            
+            result['ema_12'] = self.calculate_ema(ohlcv_data['close'], 12)
+            result['ema_26'] = self.calculate_ema(ohlcv_data['close'], 26)
+            
+            result['rsi'] = self.calculate_rsi(ohlcv_data['close'])
+            
+            # MACD
+            macd_data = self.calculate_macd(ohlcv_data['close'])
+            result['macd'] = macd_data['macd']
+            result['macd_signal'] = macd_data['signal']
+            result['macd_histogram'] = macd_data['histogram']
+            
+            # 布林带
+            bb_data = self.calculate_bollinger_bands(ohlcv_data['close'])
+            result['bb_upper'] = bb_data['upper']
+            result['bb_middle'] = bb_data['middle']
+            result['bb_lower'] = bb_data['lower']
+            
+            # ATR
+            result['atr'] = self.calculate_atr(
+                ohlcv_data['high'], 
+                ohlcv_data['low'], 
+                ohlcv_data['close']
             )
-
-        return indicators
-
-    def calculate_momentum_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """计算动量指标
-
-        Args:
-            df: OHLCV数据
-
-        Returns:
-            动量指标DataFrame
-        """
-        indicators = pd.DataFrame(index=df.index)
-
-        # RSI
-        indicators["rsi"] = talib.RSI(df["close"], timeperiod=self.config.rsi_period)
-        indicators["rsi_ma"] = indicators["rsi"].rolling(window=9).mean()
-
-        # Stochastic
-        slowk, slowd = talib.STOCH(
-            df["high"],
-            df["low"],
-            df["close"],
-            fastk_period=14,
-            slowk_period=3,
-            slowd_period=3,
-        )
-        indicators["stoch_k"] = slowk
-        indicators["stoch_d"] = slowd
-
-        # Williams %R
-        indicators["williams_r"] = talib.WILLR(
-            df["high"], df["low"], df["close"], timeperiod=14
-        )
-
-        # ROC (Rate of Change)
-        indicators["roc"] = talib.ROC(df["close"], timeperiod=10)
-
-        # Momentum
-        indicators["mom"] = talib.MOM(df["close"], timeperiod=10)
-
-        # CCI (Commodity Channel Index)
-        indicators["cci"] = talib.CCI(
-            df["high"], df["low"], df["close"], timeperiod=self.config.cci_period
-        )
-
-        # MFI (Money Flow Index)
-        if "volume" in df.columns:
-            indicators["mfi"] = talib.MFI(
-                df["high"], df["low"], df["close"], df["volume"], timeperiod=14
+            
+            # 随机指标
+            stoch_data = self.calculate_stochastic(
+                ohlcv_data['high'], 
+                ohlcv_data['low'], 
+                ohlcv_data['close']
             )
+            result['stoch_k'] = stoch_data['k']
+            result['stoch_d'] = stoch_data['d']
+            
+            logger.info(f"Calculated {len(result.columns) - len(ohlcv_data.columns)} technical indicators")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to calculate all indicators: {e}")
+            raise DataError(f"Technical indicators calculation failed: {e}")
 
-        return indicators
-
-    def calculate_volatility_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """计算波动率指标
-
-        Args:
-            df: OHLCV数据
-
-        Returns:
-            波动率指标DataFrame
-        """
-        indicators = pd.DataFrame(index=df.index)
-
-        # Bollinger Bands
-        upper, middle, lower = talib.BBANDS(
-            df["close"],
-            timeperiod=self.config.bb_period,
-            nbdevup=self.config.bb_std,
-            nbdevdn=self.config.bb_std,
-        )
-        indicators["bb_upper"] = upper
-        indicators["bb_middle"] = middle
-        indicators["bb_lower"] = lower
-        indicators["bb_width"] = upper - lower
-        indicators["bb_percent"] = (df["close"] - lower) / (upper - lower)
-
-        # ATR (Average True Range)
-        indicators["atr"] = talib.ATR(
-            df["high"], df["low"], df["close"], timeperiod=self.config.atr_period
-        )
-
-        # NATR (Normalized ATR)
-        indicators["natr"] = talib.NATR(
-            df["high"], df["low"], df["close"], timeperiod=self.config.atr_period
-        )
-
-        # True Range
-        indicators["trange"] = talib.TRANGE(df["high"], df["low"], df["close"])
-
-        # 历史波动率
-        indicators["hist_volatility"] = (
-            df["close"].pct_change().rolling(window=20).std()
-        )
-
-        # Parkinson波动率
-        indicators["parkinson_vol"] = self._calculate_parkinson_volatility(
-            df["high"], df["low"]
-        )
-
-        # Garman-Klass波动率
-        indicators["gk_vol"] = self._calculate_garman_klass_volatility(
-            df["open"], df["high"], df["low"], df["close"]
-        )
-
-        return indicators
-
-    def calculate_volume_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """计算成交量指标
-
-        Args:
-            df: OHLCV数据
-
-        Returns:
-            成交量指标DataFrame
-        """
-        indicators = pd.DataFrame(index=df.index)
-
-        if "volume" not in df.columns:
-            logger.warning("Volume data not available")
-            return indicators
-
-        # OBV (On Balance Volume)
-        indicators["obv"] = talib.OBV(df["close"], df["volume"])
-
-        # AD (Accumulation/Distribution)
-        indicators["ad"] = talib.AD(df["high"], df["low"], df["close"], df["volume"])
-
-        # ADOSC (Chaikin A/D Oscillator)
-        indicators["adosc"] = talib.ADOSC(
-            df["high"],
-            df["low"],
-            df["close"],
-            df["volume"],
-            fastperiod=3,
-            slowperiod=10,
-        )
-
-        # VWAP
-        indicators["vwap"] = self._calculate_vwap(
-            df["high"], df["low"], df["close"], df["volume"]
-        )
-
-        # Volume Rate of Change
-        indicators["vroc"] = talib.ROC(df["volume"], timeperiod=10)
-
-        # Volume Moving Average
-        indicators["volume_sma"] = talib.SMA(df["volume"], timeperiod=20)
-
-        # Volume Ratio
-        indicators["volume_ratio"] = df["volume"] / indicators["volume_sma"]
-
-        return indicators
-
-    def calculate_pattern_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """计算形态指标
-
-        Args:
-            df: OHLCV数据
-
-        Returns:
-            形态指标DataFrame
-        """
-        indicators = pd.DataFrame(index=df.index)
-
-        # 蜡烛图形态
-        cdl_patterns = {
-            "cdl_doji": talib.CDLDOJI,
-            "cdl_hammer": talib.CDLHAMMER,
-            "cdl_hanging_man": talib.CDLHANGINGMAN,
-            "cdl_engulfing": talib.CDLENGULFING,
-            "cdl_morning_star": talib.CDLMORNINGSTAR,
-            "cdl_evening_star": talib.CDLEVENINGSTAR,
-            "cdl_three_white_soldiers": talib.CDL3WHITESOLDIERS,
-            "cdl_three_black_crows": talib.CDL3BLACKCROWS,
-        }
-
-        for name, func in cdl_patterns.items():
-            try:
-                indicators[name] = func(df["open"], df["high"], df["low"], df["close"])
-            except:
-                indicators[name] = 0
-
-        # 支撑阻力位
-        support, resistance = self._calculate_support_resistance(
-            df["high"], df["low"], df["close"]
-        )
-        indicators["support"] = support
-        indicators["resistance"] = resistance
-
-        # 价格通道
-        indicators["price_channel_upper"] = df["high"].rolling(window=20).max()
-        indicators["price_channel_lower"] = df["low"].rolling(window=20).min()
-        indicators["price_channel_mid"] = (
-            indicators["price_channel_upper"] + indicators["price_channel_lower"]
-        ) / 2
-
-        return indicators
-
-    def _calculate_trend_slope(self, prices: pd.Series, period: int) -> pd.Series:
-        """计算趋势斜率
-
-        Args:
-            prices: 价格序列
-            period: 周期
-
-        Returns:
-            斜率序列
-        """
-
-        def calculate_slope(x):
-            if len(x) < 2:
-                return np.nan
-            y = np.arange(len(x))
-            slope = np.polyfit(y, x, 1)[0]
-            return slope
-
-        return prices.rolling(window=period).apply(calculate_slope)
-
-    def _calculate_vwap(
-        self, high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series
-    ) -> pd.Series:
-        """计算VWAP
-
-        Args:
-            high: 最高价
-            low: 最低价
-            close: 收盘价
-            volume: 成交量
-
-        Returns:
-            VWAP序列
-        """
-        typical_price = (high + low + close) / 3
-        cumulative_tpv = (typical_price * volume).cumsum()
-        cumulative_volume = volume.cumsum()
-
-        vwap = cumulative_tpv / cumulative_volume
-        return vwap
-
-    def _calculate_parkinson_volatility(
-        self, high: pd.Series, low: pd.Series, window: int = 20
-    ) -> pd.Series:
-        """计算Parkinson波动率
-
-        Args:
-            high: 最高价
-            low: 最低价
-            window: 窗口大小
-
-        Returns:
-            波动率序列
-        """
-        log_hl = np.log(high / low)
-        factor = 1 / (4 * np.log(2))
-
-        return log_hl.pow(2).rolling(window=window).mean().apply(np.sqrt) * np.sqrt(
-            factor
-        )
-
-    def _calculate_garman_klass_volatility(
-        self,
-        open_price: pd.Series,
-        high: pd.Series,
-        low: pd.Series,
-        close: pd.Series,
-        window: int = 20,
-    ) -> pd.Series:
-        """计算Garman-Klass波动率
-
-        Args:
-            open_price: 开盘价
-            high: 最高价
-            low: 最低价
-            close: 收盘价
-            window: 窗口大小
-
-        Returns:
-            波动率序列
-        """
-        log_hl = np.log(high / low)
-        log_co = np.log(close / open_price)
-
-        gk = 0.5 * log_hl.pow(2) - (2 * np.log(2) - 1) * log_co.pow(2)
-
-        return gk.rolling(window=window).mean().apply(np.sqrt)
-
-    def _calculate_support_resistance(
-        self, high: pd.Series, low: pd.Series, close: pd.Series, window: int = 20
-    ) -> Tuple[pd.Series, pd.Series]:
-        """计算支撑阻力位
-
-        Args:
-            high: 最高价
-            low: 最低价
-            close: 收盘价
-            window: 窗口大小
-
-        Returns:
-            支撑位和阻力位序列
-        """
-        # 简化的支撑阻力计算
-        support = low.rolling(window=window).min()
-        resistance = high.rolling(window=window).max()
-
-        return support, resistance
-
-
-# 模块级别函数
-def extract_technical_features(
-    df: pd.DataFrame, config: Optional[IndicatorConfig] = None
-) -> pd.DataFrame:
-    """提取技术指标特征的便捷函数
-
+# 便捷函数
+def calculate_technical_indicators(ohlcv_data: pd.DataFrame) -> pd.DataFrame:
+    """计算技术指标的便捷函数
+    
     Args:
-        df: OHLCV数据
-        config: 指标配置
-
+        ohlcv_data: OHLCV数据
+        
     Returns:
         包含技术指标的DataFrame
     """
-    calculator = TechnicalIndicators(config)
-    return calculator.calculate_all_indicators(df)
+    calculator = TechnicalIndicators()
+    return calculator.calculate_all_indicators(ohlcv_data)

@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinLoom - 智能量化投资平台</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-chart-line me-2"></i>
+                FinLoom
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#dashboard" data-section="dashboard">
+                            <i class="fas fa-tachometer-alt me-1"></i>仪表板
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#analysis" data-section="analysis">
+                            <i class="fas fa-brain me-1"></i>智能分析
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#portfolio" data-section="portfolio">
+                            <i class="fas fa-briefcase me-1"></i>投资组合
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#backtest" data-section="backtest">
+                            <i class="fas fa-history me-1"></i>策略回测
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#data" data-section="data">
+                            <i class="fas fa-database me-1"></i>数据管理
+                        </a>
+                    </li>
+                </ul>
+                <div class="navbar-nav">
+                    <span class="navbar-text me-3">
+                        <i class="fas fa-circle text-success me-1"></i>系统正常
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容区域 -->
+    <main class="main-content">
+        <!-- 仪表板页面 -->
+        <section id="dashboard" class="content-section active">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-12">
+                        <h1 class="page-title">投资仪表板</h1>
+                    </div>
+                </div>
+                
+                <!-- 关键指标卡片 -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card metric-card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="card-title text-muted">总资产</h6>
+                                        <h3 class="mb-0" id="total-assets">¥1,000,000</h3>
+                                    </div>
+                                    <div class="metric-icon">
+                                        <i class="fas fa-wallet text-primary"></i>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <span class="text-success">
+                                        <i class="fas fa-arrow-up me-1"></i>+5.2%
+                                    </span>
+                                    <small class="text-muted ms-2">本月</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card metric-card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="card-title text-muted">今日收益</h6>
+                                        <h3 class="mb-0" id="daily-return">¥12,500</h3>
+                                    </div>
+                                    <div class="metric-icon">
+                                        <i class="fas fa-chart-line text-success"></i>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <span class="text-success">
+                                        <i class="fas fa-arrow-up me-1"></i>+1.25%
+                                    </span>
+                                    <small class="text-muted ms-2">今日</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card metric-card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="card-title text-muted">夏普比率</h6>
+                                        <h3 class="mb-0" id="sharpe-ratio">1.85</h3>
+                                    </div>
+                                    <div class="metric-icon">
+                                        <i class="fas fa-balance-scale text-warning"></i>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <span class="text-success">
+                                        <i class="fas fa-arrow-up me-1"></i>+0.15
+                                    </span>
+                                    <small class="text-muted ms-2">本周</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card metric-card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <h6 class="card-title text-muted">最大回撤</h6>
+                                        <h3 class="mb-0" id="max-drawdown">-3.2%</h3>
+                                    </div>
+                                    <div class="metric-icon">
+                                        <i class="fas fa-shield-alt text-danger"></i>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <span class="text-success">
+                                        <i class="fas fa-arrow-down me-1"></i>-0.8%
+                                    </span>
+                                    <small class="text-muted ms-2">本月</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 图表区域 -->
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">资产净值曲线</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="equityCurveChart" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">持仓分布</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="portfolioPieChart" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 最近交易 -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">最近交易</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>时间</th>
+                                                <th>标的</th>
+                                                <th>操作</th>
+                                                <th>数量</th>
+                                                <th>价格</th>
+                                                <th>盈亏</th>
+                                                <th>状态</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="recent-trades">
+                                            <!-- 动态加载交易记录 -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 智能分析页面 -->
+        <section id="analysis" class="content-section">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-12">
+                        <h1 class="page-title">智能投资分析</h1>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">投资需求分析</h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="analysis-form">
+                                    <div class="mb-3">
+                                        <label for="investment-text" class="form-label">请描述您的投资需求</label>
+                                        <textarea class="form-control" id="investment-text" rows="4" 
+                                                  placeholder="例如：我想找一些高成长性的中小盘股票，风险承受能力中等，投资期限1-3年"></textarea>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="investment-amount" class="form-label">投资金额（元）</label>
+                                                <input type="number" class="form-control" id="investment-amount" 
+                                                       placeholder="1000000">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="risk-tolerance" class="form-label">风险偏好</label>
+                                                <select class="form-select" id="risk-tolerance">
+                                                    <option value="">请选择</option>
+                                                    <option value="conservative">保守型</option>
+                                                    <option value="moderate">稳健型</option>
+                                                    <option value="aggressive">激进型</option>
+                                                    <option value="very_aggressive">非常激进型</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-brain me-2"></i>开始分析
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- 分析结果 -->
+                        <div class="card mt-4" id="analysis-result" style="display: none;">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">分析结果</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="analysis-content">
+                                    <!-- 动态加载分析结果 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">市场概览</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="market-overview">
+                                    <div class="market-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>上证指数</span>
+                                            <span class="text-success">+1.2%</span>
+                                        </div>
+                                        <small class="text-muted">3,245.67</small>
+                                    </div>
+                                    <hr>
+                                    <div class="market-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>深证成指</span>
+                                            <span class="text-success">+0.8%</span>
+                                        </div>
+                                        <small class="text-muted">12,456.78</small>
+                                    </div>
+                                    <hr>
+                                    <div class="market-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>创业板指</span>
+                                            <span class="text-danger">-0.5%</span>
+                                        </div>
+                                        <small class="text-muted">2,345.67</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card mt-4">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">热门股票</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="hot-stocks">
+                                    <div class="stock-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>平安银行 (000001)</span>
+                                            <span class="text-success">+2.5%</span>
+                                        </div>
+                                        <small class="text-muted">¥12.45</small>
+                                    </div>
+                                    <hr>
+                                    <div class="stock-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>招商银行 (600036)</span>
+                                            <span class="text-success">+1.8%</span>
+                                        </div>
+                                        <small class="text-muted">¥45.67</small>
+                                    </div>
+                                    <hr>
+                                    <div class="stock-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>中国平安 (601318)</span>
+                                            <span class="text-danger">-0.9%</span>
+                                        </div>
+                                        <small class="text-muted">¥56.78</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 投资组合页面 -->
+        <section id="portfolio" class="content-section">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-12">
+                        <h1 class="page-title">投资组合管理</h1>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">当前持仓</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>标的</th>
+                                                <th>持仓数量</th>
+                                                <th>成本价</th>
+                                                <th>当前价</th>
+                                                <th>市值</th>
+                                                <th>盈亏</th>
+                                                <th>盈亏率</th>
+                                                <th>操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="portfolio-positions">
+                                            <!-- 动态加载持仓数据 -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">组合统计</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="portfolio-stats">
+                                    <div class="stat-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>总市值</span>
+                                            <span id="total-market-value">¥1,000,000</span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="stat-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>总成本</span>
+                                            <span id="total-cost">¥950,000</span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="stat-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>浮动盈亏</span>
+                                            <span class="text-success" id="floating-pnl">+¥50,000</span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="stat-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>持仓股票数</span>
+                                            <span id="position-count">8</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card mt-4">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">风险指标</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="risk-metrics">
+                                    <div class="metric-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>组合波动率</span>
+                                            <span>15.2%</span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="metric-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>最大回撤</span>
+                                            <span class="text-danger">-3.2%</span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="metric-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>夏普比率</span>
+                                            <span class="text-success">1.85</span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="metric-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>VaR (95%)</span>
+                                            <span class="text-warning">-2.1%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 策略回测页面 -->
+        <section id="backtest" class="content-section">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-12">
+                        <h1 class="page-title">策略回测</h1>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">回测配置</h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="backtest-form">
+                                    <div class="mb-3">
+                                        <label for="strategy-select" class="form-label">选择策略</label>
+                                        <select class="form-select" id="strategy-select">
+                                            <option value="sma">简单移动平均</option>
+                                            <option value="rsi">RSI策略</option>
+                                            <option value="macd">MACD策略</option>
+                                            <option value="bollinger">布林带策略</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="symbol-select" class="form-label">选择标的</label>
+                                        <select class="form-select" id="symbol-select">
+                                            <option value="000001">平安银行</option>
+                                            <option value="000002">万科A</option>
+                                            <option value="600000">浦发银行</option>
+                                            <option value="600036">招商银行</option>
+                                        </select>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="mb-3">
+                                                <label for="start-date" class="form-label">开始日期</label>
+                                                <input type="date" class="form-control" id="start-date" value="2023-01-01">
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="mb-3">
+                                                <label for="end-date" class="form-label">结束日期</label>
+                                                <input type="date" class="form-control" id="end-date">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="initial-capital" class="form-label">初始资金</label>
+                                        <input type="number" class="form-control" id="initial-capital" value="1000000">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="fas fa-play me-2"></i>开始回测
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">回测结果</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="backtest-results" style="display: none;">
+                                    <div class="row mb-4">
+                                        <div class="col-md-3">
+                                            <div class="text-center">
+                                                <h4 class="text-primary" id="total-return">+25.6%</h4>
+                                                <small class="text-muted">总收益率</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="text-center">
+                                                <h4 class="text-success" id="annual-return">+12.8%</h4>
+                                                <small class="text-muted">年化收益率</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="text-center">
+                                                <h4 class="text-warning" id="sharpe-ratio-backtest">1.85</h4>
+                                                <small class="text-muted">夏普比率</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <div class="text-center">
+                                                <h4 class="text-danger" id="max-drawdown-backtest">-8.2%</h4>
+                                                <small class="text-muted">最大回撤</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <canvas id="backtestChart" height="300"></canvas>
+                                </div>
+                                <div id="backtest-placeholder" class="text-center text-muted">
+                                    <i class="fas fa-chart-line fa-3x mb-3"></i>
+                                    <p>请配置回测参数并开始回测</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 数据管理页面 -->
+        <section id="data" class="content-section">
+            <div class="container-fluid">
+                <div class="row">
+                    <div class="col-12">
+                        <h1 class="page-title">数据管理</h1>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">数据收集</h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="data-collection-form">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="data-symbol" class="form-label">股票代码</label>
+                                                <input type="text" class="form-control" id="data-symbol" 
+                                                       placeholder="000001">
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label for="data-period" class="form-label">数据周期</label>
+                                                <select class="form-select" id="data-period">
+                                                    <option value="1y">1年</option>
+                                                    <option value="2y">2年</option>
+                                                    <option value="5y">5年</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-download me-2"></i>收集数据
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div class="card mt-4">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">数据概览</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>股票代码</th>
+                                                <th>股票名称</th>
+                                                <th>数据条数</th>
+                                                <th>最新价格</th>
+                                                <th>更新时间</th>
+                                                <th>操作</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="data-overview">
+                                            <!-- 动态加载数据概览 -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">系统状态</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="system-status">
+                                    <div class="status-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>API服务</span>
+                                            <span class="badge bg-success">正常</span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="status-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>数据库</span>
+                                            <span class="badge bg-success">正常</span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="status-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>数据源</span>
+                                            <span class="badge bg-success">正常</span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="status-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>模型服务</span>
+                                            <span class="badge bg-warning">模拟模式</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card mt-4">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">数据统计</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="data-stats">
+                                    <div class="stat-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>总股票数</span>
+                                            <span>1,247</span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="stat-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>总数据条数</span>
+                                            <span>2,456,789</span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="stat-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>今日更新</span>
+                                            <span>1,247</span>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="stat-item">
+                                        <div class="d-flex justify-content-between">
+                                            <span>数据完整性</span>
+                                            <span class="text-success">98.5%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 加载提示 -->
+    <div id="loading-overlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">加载中...</span>
+            </div>
+            <p class="mt-3">处理中，请稍候...</p>
+        </div>
+    </div>
+
+    <!-- 脚本文件 -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

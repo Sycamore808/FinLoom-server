@@ -137,15 +137,24 @@ class EnvironmentChecker:
             系统信息对象
         """
         try:
-            cpu_freq = psutil.cpu_freq()
+            # 获取CPU频率，处理可能的异常
+            cpu_freq = None
+            try:
+                cpu_freq = psutil.cpu_freq()
+            except Exception:
+                cpu_freq = None
+                
+            # 获取内存信息
             memory = psutil.virtual_memory()
+            
+            # 获取磁盘信息
             disk = psutil.disk_usage('/')
             
             system_info = SystemInfo(
                 os_name=platform.system(),
                 os_version=platform.version(),
                 architecture=platform.machine(),
-                cpu_count=psutil.cpu_count(),
+                cpu_count=psutil.cpu_count() or 0,
                 cpu_freq_mhz=cpu_freq.current if cpu_freq else 0.0,
                 total_memory_gb=memory.total / (1024**3),
                 available_memory_gb=memory.available / (1024**3),

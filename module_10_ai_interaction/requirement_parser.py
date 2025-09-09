@@ -76,6 +76,43 @@ class ParsedRequirement:
     confidence_scores: Dict[str, float] = field(default_factory=dict)
     extracted_entities: Dict[str, Any] = field(default_factory=dict)
     clarification_needed: List[str] = field(default_factory=list)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式"""
+        return {
+            "timestamp": self.timestamp.isoformat(),
+            "raw_input": self.raw_input,
+            "investment_amount": self.investment_amount,
+            "investment_horizon": self.investment_horizon.value if self.investment_horizon else None,
+            "risk_tolerance": self.risk_tolerance.value if self.risk_tolerance else None,
+            "investment_goals": [
+                {
+                    "goal_type": goal.goal_type,
+                    "target_return": goal.target_return,
+                    "priority": goal.priority,
+                    "description": goal.description
+                } for goal in self.investment_goals
+            ],
+            "constraints": [
+                {
+                    "constraint_type": constraint.constraint_type,
+                    "constraint_value": constraint.constraint_value,
+                    "is_hard_constraint": constraint.is_hard_constraint,
+                    "description": constraint.description
+                } for constraint in self.constraints
+            ],
+            "preferred_assets": self.preferred_assets,
+            "excluded_assets": self.excluded_assets,
+            "target_sectors": self.target_sectors,
+            "excluded_sectors": self.excluded_sectors,
+            "max_drawdown": self.max_drawdown,
+            "min_liquidity": self.min_liquidity,
+            "tax_considerations": self.tax_considerations,
+            "esg_preferences": self.esg_preferences,
+            "confidence_scores": self.confidence_scores,
+            "extracted_entities": self.extracted_entities,
+            "clarification_needed": self.clarification_needed
+        }
 
 
 class RequirementParser:
@@ -127,6 +164,46 @@ class RequirementParser:
         """初始化需求解析器"""
         self.nlp_model = None  # 可以集成spaCy或其他NLP模型
 
+    def parse_requirement(self, text: str) -> ParsedRequirement:
+        """解析用户需求
+        
+        Args:
+            text: 用户输入文本
+            
+        Returns:
+            解析后的需求对象
+        """
+        try:
+            parsed = ParsedRequirement(timestamp=datetime.now(), raw_input=text)
+            
+            # 提取各种信息
+            parsed.investment_amount = self._extract_amount(text)
+            parsed.investment_horizon = self._extract_time_horizon(text)
+            
+            risk_tolerance, risk_confidence = self.extract_risk_preferences(text)
+            parsed.risk_tolerance = risk_tolerance
+            parsed.confidence_scores["risk_tolerance"] = risk_confidence
+            
+            goals, goals_confidence = self.parse_investment_goals(text)
+            parsed.investment_goals = goals
+            parsed.confidence_scores["goals"] = goals_confidence
+            
+            parsed.constraints = self.identify_constraints(text)
+            
+            # 检查是否需要澄清
+            if not parsed.investment_amount:
+                parsed.clarification_needed.append("investment_amount")
+            if not parsed.risk_tolerance:
+                parsed.clarification_needed.append("risk_tolerance")
+            if not parsed.investment_horizon:
+                parsed.clarification_needed.append("investment_horizon")
+            
+            return parsed
+            
+        except Exception as e:
+            logger.error(f"Failed to parse requirement: {e}")
+            raise QuantSystemError(f"Requirement parsing failed: {e}")
+    
     def parse_investment_goals(self, text: str) -> Tuple[List[InvestmentGoal], float]:
         """解析投资目标
 

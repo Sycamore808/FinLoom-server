@@ -1,0 +1,33 @@
+# 系统配置文件
+
+# 日志配置
+logging:
+  level: INFO
+  format: "%(asctime)s | %(levelname)s | %(name)s:%(funcName)s:%(lineno)d | %(message)s"
+  file_path: "logs/system.log"
+  max_bytes: 10485760  # 10MB
+  backup_count: 5
+
+# 数据库配置
+database:
+  type: duckdb
+  path: "data/finloom.db"
+  max_connections: 10
+
+# 缓存配置
+cache:
+  type: memory
+  max_size: 1000
+  ttl_seconds: 3600
+
+# 并发配置
+concurrency:
+  max_workers: 4
+  thread_pool_size: 10
+  async_timeout: 30
+
+# 系统监控
+monitoring:
+  enable: true
+  metrics_port: 8001
+  health_check_interval: 60

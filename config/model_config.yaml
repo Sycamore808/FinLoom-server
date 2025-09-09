@@ -1,0 +1,44 @@
+# 模型配置文件
+
+# FIN-R1模型配置
+fin_r1:
+  model_path: "models/fin_r1"
+  device: "cpu"  # or "cuda" if GPU available
+  batch_size: 32
+  max_length: 512
+  temperature: 0.7
+
+# 特征工程配置
+feature_engineering:
+  lookback_periods: [5, 10, 20, 50, 100]
+  technical_indicators:
+    - sma
+    - ema
+    - rsi
+    - macd
+    - bb
+    - atr
+  normalization:
+    method: "minmax"
+    window: 252
+
+# 模型集成配置
+ensemble:
+  models:
+    - name: "lstm"
+      weight: 0.3
+      path: "models/lstm"
+    - name: "xgboost"
+      weight: 0.4
+      path: "models/xgboost"
+    - name: "transformer"
+      weight: 0.3
+      path: "models/transformer"
+  voting_strategy: "weighted"
+
+# 在线学习配置
+online_learning:
+  enable: true
+  update_frequency: "daily"
+  learning_rate: 0.001
+  buffer_size: 1000
