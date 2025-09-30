@@ -97,18 +97,153 @@ class DatabaseManager:
                 )
             """)
 
-            # 创建交易信号表
+            # 创建宏观数据表
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS trading_signals (
-                    signal_id TEXT PRIMARY KEY,
+                CREATE TABLE IF NOT EXISTS macro_data (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    indicator_type TEXT NOT NULL,
+                    date TEXT NOT NULL,
+                    value REAL NOT NULL,
+                    report_name TEXT,
+                    forecast_value REAL,
+                    previous_value REAL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(indicator_type, date)
+                )
+            """)
+
+            # 创建板块数据表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS sector_data (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sector_name TEXT NOT NULL,
+                    company_count INTEGER,
+                    avg_price REAL,
+                    change_amount REAL,
+                    change_pct REAL,
+                    total_volume INTEGER,
+                    total_amount REAL,
+                    date TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(sector_name, date)
+                )
+            """)
+
+            # 创建新闻数据表 (新闻联播)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS news_data (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    content TEXT,
+                    sentiment TEXT,
+                    source TEXT DEFAULT 'CCTV',
+                    created_at TEXT NOT NULL
+                )
+            """)
+
+            # 创建个股新闻数据表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS stock_news (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
                     symbol TEXT NOT NULL,
-                    strategy_name TEXT NOT NULL,
-                    signal_type TEXT NOT NULL,
-                    confidence REAL NOT NULL,
-                    price REAL NOT NULL,
-                    quantity INTEGER NOT NULL,
-                    timestamp TEXT NOT NULL,
-                    metadata TEXT,
+                    keyword TEXT,
+                    title TEXT NOT NULL,
+                    content TEXT,
+                    publish_time TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    news_url TEXT,
+                    created_at TEXT NOT NULL
+                )
+            """)
+
+            # 创建每日A股市场概况表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS daily_market_overview (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    date TEXT NOT NULL UNIQUE,
+                    listed_stocks INTEGER,
+                    main_board_a INTEGER,
+                    main_board_b INTEGER,
+                    star_market INTEGER,
+                    stock_buyback INTEGER,
+                    total_market_value REAL,
+                    circulating_market_value REAL,
+                    turnover_amount REAL,
+                    turnover_volume REAL,
+                    avg_pe_ratio REAL,
+                    turnover_rate REAL,
+                    circulating_turnover_rate REAL,
+                    created_at TEXT NOT NULL
+                )
+            """)
+
+            # 创建个股详细信息表（完整版）
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS stock_detail_info (
+                    symbol TEXT PRIMARY KEY,
+                    stock_code TEXT,
+                    name TEXT NOT NULL,
+                    latest_price REAL,
+                    total_shares REAL,
+                    circulating_shares REAL,
+                    total_market_value REAL,
+                    circulating_market_value REAL,
+                    industry TEXT,
+                    listing_date TEXT,
+                    
+                    -- 公司基本信息
+                    org_name_cn TEXT,
+                    org_short_name_cn TEXT,
+                    org_name_en TEXT,
+                    org_short_name_en TEXT,
+                    main_operation_business TEXT,
+                    operating_scope TEXT,
+                    org_cn_introduction TEXT,
+                    
+                    -- 管理层信息
+                    legal_representative TEXT,
+                    general_manager TEXT,
+                    secretary TEXT,
+                    chairman TEXT,
+                    executives_nums INTEGER,
+                    
+                    -- 财务信息
+                    established_date TEXT,
+                    reg_asset REAL,
+                    staff_num INTEGER,
+                    currency TEXT,
+                    listed_date_timestamp TEXT,
+                    
+                    -- 联系信息
+                    telephone TEXT,
+                    postcode TEXT,
+                    fax TEXT,
+                    email TEXT,
+                    org_website TEXT,
+                    reg_address_cn TEXT,
+                    reg_address_en TEXT,
+                    office_address_cn TEXT,
+                    office_address_en TEXT,
+                    
+                    -- 控制权信息
+                    provincial_name TEXT,
+                    actual_controller TEXT,
+                    classi_name TEXT,
+                    pre_name_cn TEXT,
+                    
+                    -- 发行信息
+                    actual_issue_vol REAL,
+                    issue_price REAL,
+                    actual_rc_net_amt REAL,
+                    pe_after_issuing REAL,
+                    online_success_rate_of_issue REAL,
+                    
+                    -- 行业信息
+                    affiliate_industry_code TEXT,
+                    affiliate_industry_name TEXT,
+                    
+                    updated_at TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 )
             """)
@@ -144,11 +279,24 @@ class DatabaseManager:
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_technical_indicators_symbol_date ON technical_indicators(symbol, date)"
             )
+            # 创建宏观数据索引
             cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_trading_signals_symbol ON trading_signals(symbol)"
+                "CREATE INDEX IF NOT EXISTS idx_macro_data_indicator_date ON macro_data(indicator_type, date)"
             )
             cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_trading_signals_timestamp ON trading_signals(timestamp)"
+                "CREATE INDEX IF NOT EXISTS idx_sector_data_sector_date ON sector_data(sector_name, date)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_news_data_date ON news_data(date)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_stock_news_symbol ON stock_news(symbol)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_stock_news_publish_time ON stock_news(publish_time)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_daily_market_overview_date ON daily_market_overview(date)"
             )
 
             conn.commit()
@@ -158,6 +306,29 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
             raise DataError(f"Database initialization failed: {e}")
+
+    def _safe_numeric(self, value, default=0):
+        """
+        安全转换数值，处理NaN、None等特殊值
+
+        Args:
+            value: 要转换的值
+            default: 默认值
+
+        Returns:
+            转换后的数值
+        """
+        try:
+            if (
+                pd.isna(value)
+                or value is None
+                or value == ""
+                or str(value).lower() == "nan"
+            ):
+                return default
+            return float(value)
+        except (ValueError, TypeError):
+            return default
 
     def save_stock_info(
         self,
@@ -489,6 +660,611 @@ class DatabaseManager:
             logger.error(f"Failed to save backtest result: {e}")
             raise DataError(f"Backtest result save failed: {e}")
 
+    def save_macro_data(self, indicator_type: str, df: pd.DataFrame) -> bool:
+        """保存宏观经济数据
+
+        Args:
+            indicator_type: 指标类型 (GDP, CPI, PMI等)
+            df: 宏观数据 DataFrame
+
+        Returns:
+            是否保存成功
+        """
+        try:
+            if df.empty:
+                logger.warning(f"Empty DataFrame provided for {indicator_type}")
+                return False
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            now = datetime.now().isoformat()
+
+            # 批量插入数据
+            records = []
+            for _, row in df.iterrows():
+                # 处理日期字段
+                if "日期" in row:
+                    date_value = row["日期"]
+                elif "date" in row:
+                    date_value = row["date"]
+                else:
+                    continue
+
+                if date_value is None:
+                    continue
+
+                try:
+                    date_str = pd.to_datetime(date_value).strftime("%Y-%m-%d")
+                except Exception:
+                    date_str = (
+                        str(date_value).split()[0]
+                        if " " in str(date_value)
+                        else str(date_value)[:10]
+                    )
+
+                # 处理值字段
+                value = None
+                if "今值" in row:
+                    value = row["今值"]
+                elif "value" in row:
+                    value = row["value"]
+                elif "同比增长" in row:
+                    value = row["同比增长"]
+
+                if value is None or pd.isna(value):
+                    continue
+
+                # 处理其他字段
+                report_name = row.get("商品", row.get("report_name", ""))
+                forecast_value = row.get("预测值", row.get("forecast_value", None))
+                previous_value = row.get("前值", row.get("previous_value", None))
+
+                records.append(
+                    (
+                        indicator_type,
+                        date_str,
+                        float(value),
+                        str(report_name) if report_name else None,
+                        float(forecast_value)
+                        if forecast_value and not pd.isna(forecast_value)
+                        else None,
+                        float(previous_value)
+                        if previous_value and not pd.isna(previous_value)
+                        else None,
+                        now,
+                    )
+                )
+
+            if records:
+                cursor.executemany(
+                    """
+                    INSERT OR REPLACE INTO macro_data 
+                    (indicator_type, date, value, report_name, forecast_value, previous_value, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                    records,
+                )
+
+                conn.commit()
+                logger.info(f"Saved {len(records)} {indicator_type} records")
+                result = True
+            else:
+                logger.warning(f"No valid records found for {indicator_type}")
+                result = False
+
+            conn.close()
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to save macro data for {indicator_type}: {e}")
+            return False
+
+    def save_sector_data(self, df: pd.DataFrame, date: str = None) -> bool:
+        """保存板块数据
+
+        Args:
+            df: 板块数据 DataFrame
+            date: 数据日期
+
+        Returns:
+            是否保存成功
+        """
+        try:
+            if df.empty:
+                logger.warning("Empty DataFrame provided for sector data")
+                return False
+
+            if date is None:
+                date = datetime.now().strftime("%Y-%m-%d")
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            now = datetime.now().isoformat()
+
+            records = []
+            for _, row in df.iterrows():
+                sector_name = row.get("板块", row.get("sector_name", ""))
+                if not sector_name:
+                    continue
+
+                records.append(
+                    (
+                        str(sector_name),
+                        int(row.get("公司家数", row.get("company_count", 0)))
+                        if not pd.isna(row.get("公司家数", row.get("company_count", 0)))
+                        else 0,
+                        float(row.get("平均价格", row.get("avg_price", 0)))
+                        if not pd.isna(row.get("平均价格", row.get("avg_price", 0)))
+                        else 0,
+                        float(row.get("涨跌额", row.get("change_amount", 0)))
+                        if not pd.isna(row.get("涨跌额", row.get("change_amount", 0)))
+                        else 0,
+                        float(row.get("涨跌幅", row.get("change_pct", 0)))
+                        if not pd.isna(row.get("涨跌幅", row.get("change_pct", 0)))
+                        else 0,
+                        int(row.get("总成交量", row.get("total_volume", 0)))
+                        if not pd.isna(row.get("总成交量", row.get("total_volume", 0)))
+                        else 0,
+                        float(row.get("总成交额", row.get("total_amount", 0)))
+                        if not pd.isna(row.get("总成交额", row.get("total_amount", 0)))
+                        else 0,
+                        date,
+                        now,
+                    )
+                )
+
+            if records:
+                cursor.executemany(
+                    """
+                    INSERT OR REPLACE INTO sector_data 
+                    (sector_name, company_count, avg_price, change_amount, change_pct, 
+                     total_volume, total_amount, date, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                    records,
+                )
+
+                conn.commit()
+                logger.info(f"Saved {len(records)} sector records for {date}")
+                result = True
+            else:
+                logger.warning("No valid sector records found")
+                result = False
+
+            conn.close()
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to save sector data: {e}")
+            return False
+
+    def save_stock_news(self, symbol: str, df: pd.DataFrame) -> bool:
+        """
+        保存个股新闻数据
+
+        Args:
+            symbol: 股票代码
+            df: 新闻数据 DataFrame
+
+        Returns:
+            是否保存成功
+        """
+        try:
+            if df.empty:
+                logger.warning(f"Empty DataFrame provided for stock news {symbol}")
+                return False
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            now = datetime.now().isoformat()
+
+            records = []
+            for _, row in df.iterrows():
+                keyword = row.get("关键词", symbol)
+                title = row.get("新闻标题", "")
+                content = row.get("新闻内容", "")
+                publish_time = row.get("发布时间", "")
+                source = row.get("文章来源", "")
+                news_url = row.get("新闻链接", "")
+
+                if not title:
+                    continue
+
+                records.append(
+                    (
+                        symbol,
+                        str(keyword),
+                        str(title),
+                        str(content),
+                        str(publish_time),
+                        str(source),
+                        str(news_url),
+                        now,
+                    )
+                )
+
+            if records:
+                cursor.executemany(
+                    """
+                    INSERT OR IGNORE INTO stock_news 
+                    (symbol, keyword, title, content, publish_time, source, news_url, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                    records,
+                )
+
+                conn.commit()
+                logger.info(f"Saved {len(records)} stock news records for {symbol}")
+                result = True
+            else:
+                logger.warning(f"No valid stock news records found for {symbol}")
+                result = False
+
+            conn.close()
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to save stock news for {symbol}: {e}")
+            return False
+
+    def save_daily_market_overview(self, df: pd.DataFrame, date: str = None) -> bool:
+        """
+        保存每日A股市场概况数据
+
+        数据结构说明：
+        - 原始数据是8行×6列，每行代表一个指标
+        - '单日情况'列包含指标名称：挂牌数、市价总值、流通市值等
+        - 其他列（'股票'、'主板A'、'主板B'、'科创板'、'股票回购'）包含对应板块的数值
+
+        Args:
+            df: 市场概况数据 DataFrame
+            date: 数据日期，如果为None则使用当前日期
+
+        Returns:
+            是否保存成功
+        """
+        try:
+            if df.empty:
+                logger.warning("Empty DataFrame provided for daily market overview")
+                return False
+
+            if date is None:
+                date = datetime.now().strftime("%Y-%m-%d")
+            elif len(str(date)) == 8:  # Convert YYYYMMDD to YYYY-MM-DD
+                date_str = str(date)
+                date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            now = datetime.now().isoformat()
+
+            # 解析实际数据结构：8行指标数据
+            # 找到各个指标对应的行
+            overview_data = {
+                "date": date,
+                "listed_stocks": 0,
+                "main_board_a": 0,
+                "main_board_b": 0,
+                "star_market": 0,
+                "stock_buyback": 0,
+                "total_market_value": 0.0,
+                "circulating_market_value": 0.0,
+                "turnover_amount": 0.0,
+                "turnover_volume": 0.0,
+                "avg_pe_ratio": 0.0,
+                "turnover_rate": 0.0,
+                "circulating_turnover_rate": 0.0,
+            }
+
+            # 遍历每一行，提取对应数据
+            for _, row in df.iterrows():
+                metric_name = row.get("单日情况", "")
+
+                if metric_name == "挂牌数":
+                    overview_data["listed_stocks"] = int(
+                        self._safe_numeric(row.get("股票", 0))
+                    )
+                    overview_data["main_board_a"] = int(
+                        self._safe_numeric(row.get("主板A", 0))
+                    )
+                    overview_data["main_board_b"] = int(
+                        self._safe_numeric(row.get("主板B", 0))
+                    )
+                    overview_data["star_market"] = int(
+                        self._safe_numeric(row.get("科创板", 0))
+                    )
+                    overview_data["stock_buyback"] = int(
+                        self._safe_numeric(row.get("股票回购", 0))
+                    )
+
+                elif metric_name == "市价总值":
+                    overview_data["total_market_value"] = float(
+                        self._safe_numeric(row.get("股票", 0))
+                    )
+
+                elif metric_name == "流通市值":
+                    overview_data["circulating_market_value"] = float(
+                        self._safe_numeric(row.get("股票", 0))
+                    )
+
+                elif metric_name == "成交金额":
+                    overview_data["turnover_amount"] = float(
+                        self._safe_numeric(row.get("股票", 0))
+                    )
+
+                elif metric_name == "成交量":
+                    overview_data["turnover_volume"] = float(
+                        self._safe_numeric(row.get("股票", 0))
+                    )
+
+                elif metric_name == "平均市盈率":
+                    overview_data["avg_pe_ratio"] = float(
+                        self._safe_numeric(row.get("股票", 0))
+                    )
+
+                elif metric_name == "换手率":
+                    overview_data["turnover_rate"] = float(
+                        self._safe_numeric(row.get("股票", 0))
+                    )
+
+                elif metric_name == "流通换手率":
+                    overview_data["circulating_turnover_rate"] = float(
+                        self._safe_numeric(row.get("股票", 0))
+                    )
+
+            # 保存到数据库
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO daily_market_overview 
+                (date, listed_stocks, main_board_a, main_board_b, star_market, stock_buyback,
+                 total_market_value, circulating_market_value, turnover_amount, turnover_volume,
+                 avg_pe_ratio, turnover_rate, circulating_turnover_rate, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                (
+                    overview_data["date"],
+                    overview_data["listed_stocks"],
+                    overview_data["main_board_a"],
+                    overview_data["main_board_b"],
+                    overview_data["star_market"],
+                    overview_data["stock_buyback"],
+                    overview_data["total_market_value"],
+                    overview_data["circulating_market_value"],
+                    overview_data["turnover_amount"],
+                    overview_data["turnover_volume"],
+                    overview_data["avg_pe_ratio"],
+                    overview_data["turnover_rate"],
+                    overview_data["circulating_turnover_rate"],
+                    now,
+                ),
+            )
+
+            conn.commit()
+            conn.close()
+            logger.info(f"Saved daily market overview data for {date}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to save daily market overview: {e}")
+            return False
+
+    def save_historical_daily_market_overview(self, df: pd.DataFrame) -> bool:
+        """
+        保存历史每日A股市场概况数据（批量处理）
+
+        Args:
+            df: 历史市场概况数据 DataFrame，包含date列
+
+        Returns:
+            是否保存成功
+        """
+        try:
+            if df.empty:
+                logger.warning(
+                    "Empty DataFrame provided for historical daily market overview"
+                )
+                return False
+
+            # 按日期分组处理
+            unique_dates = df["date"].unique()
+            saved_count = 0
+
+            for date_value in unique_dates:
+                # 提取该日期的数据
+                daily_data = df[df["date"] == date_value].copy()
+                if not daily_data.empty:
+                    # 移除date列，因为save_daily_market_overview会单独处理日期
+                    daily_data_no_date = daily_data.drop(columns=["date"])
+                    success = self.save_daily_market_overview(
+                        daily_data_no_date, date=str(date_value)
+                    )
+                    if success:
+                        saved_count += 1
+
+            logger.info(
+                f"Saved {saved_count}/{len(unique_dates)} historical market overview days"
+            )
+            return saved_count > 0
+
+        except Exception as e:
+            logger.error(f"Failed to save historical daily market overview: {e}")
+            return False
+
+    def save_stock_detail_info(self, symbol: str, info_dict: Dict[str, Any]) -> bool:
+        """
+        保存个股详细信息（完整版）
+
+        Args:
+            symbol: 股票代码
+            info_dict: 股票详细信息字典
+
+        Returns:
+            是否保存成功
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            now = datetime.now().isoformat()
+
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO stock_detail_info 
+                (symbol, stock_code, name, latest_price, total_shares, circulating_shares, 
+                 total_market_value, circulating_market_value, industry, listing_date,
+                 org_name_cn, org_short_name_cn, org_name_en, org_short_name_en,
+                 main_operation_business, operating_scope, org_cn_introduction,
+                 legal_representative, general_manager, secretary, chairman, executives_nums,
+                 established_date, reg_asset, staff_num, currency, listed_date_timestamp,
+                 telephone, postcode, fax, email, org_website, 
+                 reg_address_cn, reg_address_en, office_address_cn, office_address_en,
+                 provincial_name, actual_controller, classi_name, pre_name_cn,
+                 actual_issue_vol, issue_price, actual_rc_net_amt, pe_after_issuing, 
+                 online_success_rate_of_issue, affiliate_industry_code, affiliate_industry_name,
+                 updated_at, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+                        ?, ?, ?, ?, ?)
+            """,
+                (
+                    symbol,
+                    str(info_dict.get("stock_code", "")),
+                    str(info_dict.get("name", "")),
+                    self._safe_numeric(info_dict.get("latest_price", 0)),
+                    self._safe_numeric(info_dict.get("total_shares", 0)),
+                    self._safe_numeric(info_dict.get("circulating_shares", 0)),
+                    self._safe_numeric(info_dict.get("total_market_value", 0)),
+                    self._safe_numeric(info_dict.get("circulating_market_value", 0)),
+                    str(info_dict.get("industry", "")),
+                    str(info_dict.get("listing_date", "")),
+                    # 公司基本信息
+                    str(info_dict.get("org_name_cn", "")),
+                    str(info_dict.get("org_short_name_cn", "")),
+                    str(info_dict.get("org_name_en", "")),
+                    str(info_dict.get("org_short_name_en", "")),
+                    str(info_dict.get("main_operation_business", "")),
+                    str(info_dict.get("operating_scope", "")),
+                    str(info_dict.get("org_cn_introduction", "")),
+                    # 管理层信息
+                    str(info_dict.get("legal_representative", "")),
+                    str(info_dict.get("general_manager", "")),
+                    str(info_dict.get("secretary", "")),
+                    str(info_dict.get("chairman", "")),
+                    int(self._safe_numeric(info_dict.get("executives_nums", 0))),
+                    # 财务信息
+                    str(info_dict.get("established_date", "")),
+                    self._safe_numeric(info_dict.get("reg_asset", 0)),
+                    int(self._safe_numeric(info_dict.get("staff_num", 0))),
+                    str(info_dict.get("currency", "")),
+                    str(info_dict.get("listed_date_timestamp", "")),
+                    # 联系信息
+                    str(info_dict.get("telephone", "")),
+                    str(info_dict.get("postcode", "")),
+                    str(info_dict.get("fax", "")),
+                    str(info_dict.get("email", "")),
+                    str(info_dict.get("org_website", "")),
+                    str(info_dict.get("reg_address_cn", "")),
+                    str(info_dict.get("reg_address_en", "")),
+                    str(info_dict.get("office_address_cn", "")),
+                    str(info_dict.get("office_address_en", "")),
+                    # 控制权信息
+                    str(info_dict.get("provincial_name", "")),
+                    str(info_dict.get("actual_controller", "")),
+                    str(info_dict.get("classi_name", "")),
+                    str(info_dict.get("pre_name_cn", "")),
+                    # 发行信息
+                    self._safe_numeric(info_dict.get("actual_issue_vol", 0)),
+                    self._safe_numeric(info_dict.get("issue_price", 0)),
+                    self._safe_numeric(info_dict.get("actual_rc_net_amt", 0)),
+                    self._safe_numeric(info_dict.get("pe_after_issuing", 0)),
+                    self._safe_numeric(
+                        info_dict.get("online_success_rate_of_issue", 0)
+                    ),
+                    # 行业信息
+                    str(info_dict.get("affiliate_industry_code", "")),
+                    str(info_dict.get("affiliate_industry_name", "")),
+                    now,
+                    now,
+                ),
+            )
+
+            conn.commit()
+            conn.close()
+            logger.info(f"Saved comprehensive detailed stock info for {symbol}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to save stock detail info for {symbol}: {e}")
+            return False
+
+    def save_news_data(self, df: pd.DataFrame) -> bool:
+        """
+        保存新闻数据
+
+        Args:
+            df: 新闻数据 DataFrame
+
+        Returns:
+            是否保存成功
+        """
+        try:
+            if df.empty:
+                logger.warning("Empty DataFrame provided for news data")
+                return False
+
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            now = datetime.now().isoformat()
+
+            records = []
+            for _, row in df.iterrows():
+                date_value = row.get("date", "")
+                title = row.get("title", "")
+                content = row.get("content", "")
+                sentiment = row.get("sentiment", "neutral")
+
+                if not title:
+                    continue
+
+                records.append(
+                    (
+                        str(date_value),
+                        str(title),
+                        str(content),
+                        str(sentiment),
+                        "CCTV",
+                        now,
+                    )
+                )
+
+            if records:
+                cursor.executemany(
+                    """
+                    INSERT OR IGNORE INTO news_data 
+                    (date, title, content, sentiment, source, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                    records,
+                )
+
+                conn.commit()
+                logger.info(f"Saved {len(records)} news records")
+                result = True
+            else:
+                logger.warning("No valid news records found")
+                result = False
+
+            conn.close()
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to save news data: {e}")
+            return False
+
     def get_stock_prices(
         self,
         symbol: str,
@@ -645,6 +1421,261 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Failed to get trading signals: {e}")
             return []
+
+    def get_macro_data(
+        self,
+        indicator_type: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """获取宏观经济数据
+
+        Args:
+            indicator_type: 指标类型
+            start_date: 开始日期
+            end_date: 结束日期
+
+        Returns:
+            宏观数据 DataFrame
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+
+            query = "SELECT * FROM macro_data WHERE 1=1"
+            params = []
+
+            if indicator_type:
+                query += " AND indicator_type = ?"
+                params.append(indicator_type)
+
+            if start_date:
+                query += " AND date >= ?"
+                params.append(start_date)
+
+            if end_date:
+                query += " AND date <= ?"
+                params.append(end_date)
+
+            query += " ORDER BY date"
+
+            df = pd.read_sql_query(query, conn, params=params)
+            conn.close()
+
+            if not df.empty:
+                df["date"] = pd.to_datetime(df["date"])
+
+            logger.info(f"Retrieved {len(df)} macro data records")
+            return df
+
+        except Exception as e:
+            logger.error(f"Failed to get macro data: {e}")
+            return pd.DataFrame()
+
+    def get_sector_data(
+        self,
+        sector_name: Optional[str] = None,
+        date: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """获取板块数据
+
+        Args:
+            sector_name: 板块名称
+            date: 日期
+
+        Returns:
+            板块数据 DataFrame
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+
+            query = "SELECT * FROM sector_data WHERE 1=1"
+            params = []
+
+            if sector_name:
+                query += " AND sector_name = ?"
+                params.append(sector_name)
+
+            if date:
+                query += " AND date = ?"
+                params.append(date)
+
+            query += " ORDER BY date DESC"
+
+            df = pd.read_sql_query(query, conn, params=params)
+            conn.close()
+
+            logger.info(f"Retrieved {len(df)} sector data records")
+            return df
+
+        except Exception as e:
+            logger.error(f"Failed to get sector data: {e}")
+            return pd.DataFrame()
+
+    def get_stock_news(
+        self,
+        symbol: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        limit: int = 100,
+    ) -> pd.DataFrame:
+        """
+        获取个股新闻数据
+
+        Args:
+            symbol: 股票代码
+            start_date: 开始日期
+            end_date: 结束日期
+            limit: 返回数量限制
+
+        Returns:
+            个股新闻数据 DataFrame
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+
+            query = "SELECT * FROM stock_news WHERE 1=1"
+            params = []
+
+            if symbol:
+                query += " AND symbol = ?"
+                params.append(symbol)
+
+            if start_date:
+                query += " AND publish_time >= ?"
+                params.append(start_date)
+
+            if end_date:
+                query += " AND publish_time <= ?"
+                params.append(end_date)
+
+            query += " ORDER BY publish_time DESC LIMIT ?"
+            params.append(limit)
+
+            df = pd.read_sql_query(query, conn, params=params)
+            conn.close()
+
+            logger.info(f"Retrieved {len(df)} stock news records")
+            return df
+
+        except Exception as e:
+            logger.error(f"Failed to get stock news data: {e}")
+            return pd.DataFrame()
+
+    def get_daily_market_overview(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """
+        获取每日A股市场概况数据
+
+        Args:
+            start_date: 开始日期
+            end_date: 结束日期
+
+        Returns:
+            市场概况数据 DataFrame
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+
+            query = "SELECT * FROM daily_market_overview WHERE 1=1"
+            params = []
+
+            if start_date:
+                query += " AND date >= ?"
+                params.append(start_date)
+
+            if end_date:
+                query += " AND date <= ?"
+                params.append(end_date)
+
+            query += " ORDER BY date DESC"
+
+            df = pd.read_sql_query(query, conn, params=params)
+            conn.close()
+
+            logger.info(f"Retrieved {len(df)} daily market overview records")
+            return df
+
+        except Exception as e:
+            logger.error(f"Failed to get daily market overview: {e}")
+            return pd.DataFrame()
+
+    def get_stock_detail_info(self, symbol: str) -> Dict[str, Any]:
+        """
+        获取个股详细信息
+
+        Args:
+            symbol: 股票代码
+
+        Returns:
+            股票详细信息字典
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "SELECT * FROM stock_detail_info WHERE symbol = ?", (symbol,)
+            )
+            row = cursor.fetchone()
+
+            if row:
+                columns = [description[0] for description in cursor.description]
+                result = dict(zip(columns, row))
+            else:
+                result = {}
+
+            conn.close()
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to get stock detail info for {symbol}: {e}")
+
+    def get_news_data(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        limit: int = 100,
+    ) -> pd.DataFrame:
+        """
+        获取新闻数据
+
+        Args:
+            start_date: 开始日期
+            end_date: 结束日期
+            limit: 返回数量限制
+
+        Returns:
+            新闻数据 DataFrame
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+
+            query = "SELECT * FROM news_data WHERE 1=1"
+            params = []
+
+            if start_date:
+                query += " AND date >= ?"
+                params.append(start_date)
+
+            if end_date:
+                query += " AND date <= ?"
+                params.append(end_date)
+
+            query += " ORDER BY date DESC LIMIT ?"
+            params.append(limit)
+
+            df = pd.read_sql_query(query, conn, params=params)
+            conn.close()
+
+            logger.info(f"Retrieved {len(df)} news records")
+            return df
+
+        except Exception as e:
+            logger.error(f"Failed to get news data: {e}")
+            return pd.DataFrame()
 
     def get_backtest_results(
         self, symbol: Optional[str] = None, strategy_name: Optional[str] = None

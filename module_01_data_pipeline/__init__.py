@@ -2,10 +2,10 @@
 数据管道模块初始化文件
 
 主要功能：
-1. 数据采集 - 支持多市场数据获取（A股、港股、美股、加密货币）
-2. 数据处理 - 数据清洗、验证和实时处理
+1. 数据采集 - 专注于中国A股市场数据获取（股票、宏观、财务数据）
+2. 数据处理 - 数据清洗、验证和质量管理
 3. 数据存储 - 统一的数据库管理和缓存
-4. 流处理 - 实时数据流处理和信号生成
+4. 实时数据 - 中国A股实时行情和情绪数据
 """
 
 # 数据采集模块
@@ -14,23 +14,24 @@ from .data_acquisition.akshare_collector import (
     create_akshare_collector,
     fetch_stock_data_batch,
 )
-from .data_acquisition.market_data_collector import (
-    MarketDataCollector,
-    collect_market_data,
-    collect_realtime_data,
-)
 
 # 尝试导入可选模块
 try:
-    from .data_acquisition.alternative_data_collector import AlternativeDataCollector
+    from .data_acquisition.alternative_data_collector import (
+        ChineseAlternativeDataCollector,
+    )
 except ImportError:
-    AlternativeDataCollector = None
+    ChineseAlternativeDataCollector = None
 
 try:
+    from .data_acquisition.fundamental_collector import (
+        ChineseFundamentalCollector,
+    )
     from .data_acquisition.fundamental_collector import (
         FundamentalCollector as FundamentalDataCollector,
     )
 except ImportError:
+    ChineseFundamentalCollector = None
     FundamentalDataCollector = None
 
 # 数据处理模块
@@ -45,11 +46,6 @@ from .data_processing.data_validator import (
     ValidationResult,
     ensure_data_quality,
     validate_dataframe,
-)
-from .data_processing.real_time_processor import (
-    MarketSignal,
-    PortfolioMetrics,
-    RealTimeProcessor,
 )
 
 # 尝试导入可选模块
@@ -76,26 +72,13 @@ try:
 except ImportError:
     FileStorageManager = None
 
-# 流处理模块
-# 尝试导入可选模块
-try:
-    from .stream_processing.kafka_handler import KafkaHandler
-except ImportError:
-    KafkaHandler = None
-
-try:
-    from .stream_processing.stream_processor import StreamProcessor
-except ImportError:
-    StreamProcessor = None
+# 流处理模块已在简化版本中移除，专注于中国A股数据
 
 __all__ = [
     # 数据采集
     "AkshareDataCollector",
     "create_akshare_collector",
     "fetch_stock_data_batch",
-    "MarketDataCollector",
-    "collect_market_data",
-    "collect_realtime_data",
     # 数据处理
     "DataCleaner",
     "create_data_cleaner",
@@ -105,9 +88,6 @@ __all__ = [
     "DataQualityMetrics",
     "validate_dataframe",
     "ensure_data_quality",
-    "RealTimeProcessor",
-    "MarketSignal",
-    "PortfolioMetrics",
     # 存储管理
     "DatabaseManager",
     "get_database_manager",
@@ -115,8 +95,10 @@ __all__ = [
 ]
 
 # 添加可选模块到导出列表
-if AlternativeDataCollector is not None:
-    __all__.append("AlternativeDataCollector")
+if ChineseAlternativeDataCollector is not None:
+    __all__.append("ChineseAlternativeDataCollector")
+if ChineseFundamentalCollector is not None:
+    __all__.append("ChineseFundamentalCollector")
 if FundamentalDataCollector is not None:
     __all__.append("FundamentalDataCollector")
 if DataTransformer is not None:
@@ -125,12 +107,8 @@ if CacheManager is not None:
     __all__.append("CacheManager")
 if FileStorageManager is not None:
     __all__.append("FileStorageManager")
-if KafkaHandler is not None:
-    __all__.append("KafkaHandler")
-if StreamProcessor is not None:
-    __all__.append("StreamProcessor")
 
 # 版本信息
 __version__ = "1.0.0"
 __author__ = "FinLoom Team"
-__description__ = "Financial data pipeline module for real-time and batch processing"
+__description__ = "Chinese A-share financial data pipeline module for comprehensive market data collection"

@@ -2,20 +2,42 @@
 
 ## 概述
 
-数据管道模块是 FinLoom 量化交易系统的核心组件，负责金融数据的采集、处理、验证和存储。该模块支持多市场数据获取，包括中国A股、港股、美股和加密货币等。
+数据管道模块是 FinLoom 量化交易系统的核心组件，专门负责中国A股市场金融数据的采集、处理、验证和存储。该模块专注于中国股票市场，提供准确、实时的A股数据服务。
 
 ## 主要功能
 
 ### 1. 数据采集 (Data Acquisition)
-- **AkshareDataCollector**: 专门用于获取中国股票数据
-- **MarketDataCollector**: 通用市场数据采集器，支持多市场
-- **AlternativeDataCollector**: 另类数据采集
-- **FundamentalDataCollector**: 基本面数据采集
+- **AkshareDataCollector**: 专门用于获取中国股票数据，使用akshare库，数据准确性最高
+- **ChineseAlternativeDataCollector**: 中国市场综合数据采集（宏观经济、新闻联播、个股新闻、板块数据、每日市场概况、个股详细信息）
+- **ChineseFundamentalCollector**: 中国上市公司财务数据采集（财务报表、指标、分红等）
+
+#### 数据采集器特点
+
+**AkshareDataCollector - 中国A股专业数据采集器：**
+
+| 特性 | 描述 |
+|------|------|
+| 目标市场 | 专门针对中国A股市场 |
+| 数据源 | akshare库（专业中国金融数据） |
+| 数据准确性 | ⭐⭐⭐⭐⭐ 最高 |
+| 交易时间处理 | ✅ 自动处理中国节假日和交易时间 |
+| 股票基本信息 | ✅ 丰富的中国股票信息（行业、地区等） |
+| 实时数据 | ✅ 中国A股实时行情数据 |
+| 宏观数据 | ✅ 中国宏观经济指标（GDP、CPI、PMI） |
+| 新闻数据 | ✅ 新闻联播文字稿数据 + 个股新闻 |
+| 板块数据 | ✅ 行业板块实时行情 |
+| 个股详细信息 | ✅ 综合东财+雪球数据，含公司概况、管理层、联系方式等 |
+| 每日市场概况 | ✅ 上交所每日交易概况（支持一年历史数据） |
+
+**使用建议：**
+- 🎯 **中国A股投资**: 使用 `AkshareDataCollector` 获取股票数据
+- 📊 **基本面分析**: 组合使用 `AkshareDataCollector` + `ChineseFundamentalCollector`
+- 📈 **宏观分析**: 使用 `ChineseAlternativeDataCollector` 获取宏观数据
+- 📰 **市场情绪**: 使用 `ChineseAlternativeDataCollector` 获取投资者情绪和新闻数据
 
 ### 2. 数据处理 (Data Processing)
 - **DataCleaner**: 数据清洗和预处理
 - **DataValidator**: 数据质量验证
-- **RealTimeProcessor**: 实时数据处理和信号生成
 - **DataTransformer**: 数据转换
 
 ### 3. 存储管理 (Storage Management)
@@ -23,85 +45,103 @@
 - **CacheManager**: 内存缓存管理
 - **FileStorageManager**: 文件存储管理
 
-### 4. 流处理 (Stream Processing)
-- **KafkaHandler**: Kafka消息队列处理
-- **StreamProcessor**: 实时数据流处理
-
 ## 快速开始
 
-### 基本用法
+### 快速开始示例
 
 ```python
-import asyncio
-from datetime import datetime, timedelta
 from module_01_data_pipeline import (
-    AkshareDataCollector,
+    AkshareDataCollector,           # 中国股票数据采集
+    ChineseAlternativeDataCollector, # 中国另类数据采集
+    ChineseFundamentalCollector,    # 中国财务数据采集
     DataCleaner,
-    DatabaseManager,
     get_database_manager
 )
 
-# 1. 创建数据收集器
+# 中国A股数据采集（推荐使用）
 collector = AkshareDataCollector(rate_limit=0.5)
+symbols = ["000001", "600036", "000858"]  # 平安银行、招商银行、五粮液
 
-# 2. 获取股票数据
-symbols = ["000001", "600000", "000858"]
-start_date = (datetime.now() - timedelta(days=90)).strftime("%Y%m%d")
-end_date = datetime.now().strftime("%Y%m%d")
-
-# 获取历史数据
 for symbol in symbols:
-    data = collector.fetch_stock_history(symbol, start_date, end_date)
-    print(f"{symbol}: {len(data)} records")
+    # 获取基本信息
+    info = collector.get_stock_basic_info(symbol)
+    print(f"{symbol}: {info.get('name')} - {info.get('industry')}")
+    
+    # 获取历史数据
+    data = collector.get_stock_data(symbol, "20240101", "20241231")
+    print(f"{symbol}: {len(data)} 条记录")
 
-# 3. 数据清洗
+
+# 中国宏观经济数据采集
+alt_collector = ChineseAlternativeDataCollector()
+macro_data = alt_collector.fetch_macro_economic_data()
+print(f"宏观数据类型: {list(macro_data.keys())}")
+
+# 显示GDP数据（如果有）
+if 'GDP' in macro_data and not macro_data['GDP'].empty:
+    gdp_df = macro_data['GDP']
+    print(f"GDP数据: {len(gdp_df)} 条记录")
+    latest_gdp = gdp_df.iloc[-1]
+    print(f"最新GDP数据: {latest_gdp}")
+
+# 获取个股新闻
+stock_news = alt_collector.fetch_stock_news("000001", limit=10)
+print(f"个股新闻: {len(stock_news)} 条")
+
+# 获取每日市场概况（默认一年数据）
+market_overview = alt_collector.fetch_daily_market_overview()
+print(f"市场概况: {len(market_overview)} 条记录")
+
+# 获取个股详细信息（完整版）
+stock_detail = alt_collector.fetch_detail("000001")
+print(f"股票名称: {stock_detail.get('name')}")
+print(f"公司全称: {stock_detail.get('org_name_cn')}")
+print(f"主营业务: {stock_detail.get('main_operation_business', '')[:50]}...")
+print(f"法定代表人: {stock_detail.get('legal_representative')}")
+print(f"公司电话: {stock_detail.get('telephone')}")
+print(f"公司网站: {stock_detail.get('org_website')}")
+
+# 获取一年历史市场数据
+print("开始收集一年历史市场数据...")
+yearly_overview = alt_collector.fetch_one_year_market_overview()
+print(f"一年历史数据: {len(yearly_overview)} 条记录")
+
+# 中国财务数据采集
+fund_collector = ChineseFundamentalCollector()
+symbol = "000001"
+
+# 获取财务报表
+balance_sheet = fund_collector.fetch_financial_statements(symbol, "资产负债表")
+income_statement = fund_collector.fetch_financial_statements(symbol, "利润表")
+print(f"资产负债表: {len(balance_sheet)} 条, 利润表: {len(income_statement)} 条")
+
+# 获取财务指标
+indicators = fund_collector.fetch_financial_indicators(symbol)
+print(f"PE: {indicators.get('pe_ratio')}, PB: {indicators.get('pb_ratio')}, ROE: {indicators.get('roe')}")
+
+# 获取分红历史
+dividend_data = fund_collector.fetch_dividend_history(symbol)
+print(f"分红记录: {len(dividend_data)} 条")
+
+# 数据清洗和存储
 cleaner = DataCleaner(fill_method="interpolate")
-cleaned_data = cleaner.clean_market_data(data, symbol)
-
-# 4. 存储到数据库
 db_manager = get_database_manager()
-success = db_manager.save_stock_prices(symbol, cleaned_data)
+
+for symbol in symbols:
+    cleaned_data = cleaner.clean_market_data(data, symbol)
+    success = db_manager.save_stock_prices(symbol, cleaned_data)
+    print(f"{symbol} 数据存储: {'Success' if success else 'Failed'}")
+
+# 存储宏观数据
+if macro_data:
+    for indicator, data in macro_data.items():
+        success = db_manager.save_macro_data(indicator, data)
+        print(f"{indicator} 宏观数据存储: {'Success' if success else 'Failed'}")
 ```
 
 ### 异步数据收集
 
-```python
-from module_01_data_pipeline import collect_market_data, collect_realtime_data
-
-async def async_data_collection():
-    symbols = ["000001", "600036", "000858"]
-    
-    # 异步获取历史数据
-    historical_data = await collect_market_data(symbols, lookback_days=30)
-    
-    # 异步获取实时数据
-    realtime_data = await collect_realtime_data(symbols)
-    
-    return historical_data, realtime_data
-
-# 运行异步函数
-historical, realtime = asyncio.run(async_data_collection())
-```
-
-### 实时数据处理
-
-```python
-from module_01_data_pipeline import RealTimeProcessor
-
-# 创建实时处理器
-processor = RealTimeProcessor(config={})
-
-# 添加信号回调
-def signal_callback(symbol, signals):
-    for signal in signals:
-        print(f"信号: {symbol} - {signal.signal_type} (强度: {signal.strength:.2f})")
-
-processor.add_signal_callback(signal_callback)
-
-# 更新市场数据并生成信号
-processor.update_market_data(symbol, market_data)
-signals = processor.generate_signals(symbol)
-```
+注意：在简化版本中，异步数据收集功能已被移除。本模块专注于中国A股市场，提供同步的数据采集功能。
 
 ## API 参考
 
@@ -153,47 +193,187 @@ realtime = collector.fetch_realtime_data(["000001", "600000"])
 info = collector.get_stock_basic_info("000001")
 ```
 
-### MarketDataCollector
+### ChineseAlternativeDataCollector
 
-通用市场数据采集器，支持多市场数据获取。
+专门用于采集中国市场宏观经济数据、投资者情绪和新闻数据的收集器。
 
 #### 构造函数
 ```python
-MarketDataCollector()
+ChineseAlternativeDataCollector(rate_limit: float = 0.5)
 ```
 
 #### 主要方法
 
-**fetch_historical_data(symbol: str, start_date: datetime, end_date: datetime, interval: str = "1d", market: str = "US") -> pd.DataFrame**
-- 获取历史数据
-- 自动检测市场类型
+**fetch_macro_economic_data(indicator: str = "all") -> Dict[str, pd.DataFrame]**
+- 获取宏观经济数据（GDP、CPI、PMI等）
+- 支持中国经济指标
+- 使用akshare的实际接口获取真实数据
+- 支持的指标："GDP", "CPI", "PMI", "all"
 
-**fetch_realtime_data(symbols: List[str], market: str = "US") -> Dict[str, MarketData]**
-- 获取实时数据
-- 返回 MarketData 对象
+**fetch_market_sentiment(symbol: Optional[str] = None) -> Dict[str, Any]**
+- 获取市场投资者情绪数据
+- 基于实时市场数据进行情绪分析
+- 返回看涨/看跌比例和市场情绪指标
+
+**fetch_news_data(date: str = None, limit: int = 50) -> pd.DataFrame**
+- 获取新闻联播文字稿数据
+- 使用akshare的ak.news_cctv()接口
+- 自动添加情绪分析
+
+**fetch_sector_performance(indicator: str = "新浪行业") -> pd.DataFrame**
+- 获取板块行情数据
+- 使用akshare的ak.stock_sector_spot()接口
+- 支持多种板块类型
+
+**fetch_stock_news(symbol: str, limit: int = 50) -> pd.DataFrame**
+- 获取个股新闻数据
+- 使用akshare的ak.stock_news_em()接口
+- 返回指定股票的最新新闻
+
+**fetch_daily_market_overview(date: str = None) -> pd.DataFrame**
+- 获取上海证券交易所每日概况
+- 使用akshare的ak.stock_sse_deal_daily()接口
+- 支持指定日期查询
+
+**fetch_detail(symbol: str) -> Dict[str, Any]**
+- 获取个股详细信息（完整版）
+- 结合东财和雪球两个API获取全面信息
+- 包含50+字段：公司概况、管理层、联系方式、财务信息、发行信息等
+
+**fetch_historical_daily_market_overview(start_date: str, end_date: str) -> pd.DataFrame**
+- 获取历史每日市场概况数据
+- 支持一年或更长时间范围的数据收集
+- 自动跳过周末和节假日
+
+**fetch_one_year_market_overview() -> pd.DataFrame**
+- 获取近一年的市场概况数据
+- 便捷方法，自动计算日期范围
 
 #### 示例
 ```python
-collector = MarketDataCollector()
-await collector.initialize()
+alt_collector = ChineseAlternativeDataCollector(rate_limit=0.5)
 
-# 获取A股数据
-cn_data = collector.fetch_historical_data(
-    "000001", 
-    start_date=datetime(2024, 1, 1),
-    end_date=datetime(2024, 12, 31),
-    market="CN"
-)
+# 获取宏观数据
+macro_data = alt_collector.fetch_macro_economic_data()
+print(f"数据类型: {list(macro_data.keys())}")
 
-# 获取美股数据
-us_data = collector.fetch_historical_data(
-    "AAPL",
-    start_date=datetime(2024, 1, 1), 
-    end_date=datetime(2024, 12, 31),
-    market="US"
-)
+# 显示GDP数据
+if 'GDP' in macro_data and not macro_data['GDP'].empty:
+    gdp_df = macro_data['GDP']
+    print(f"GDP数据: {len(gdp_df)} 条记录")
+    latest_gdp = gdp_df.iloc[-1]
+    print(f"最新GDP数据: {latest_gdp}")
 
-await collector.cleanup()
+# 获取投资者情绪
+sentiment = alt_collector.fetch_market_sentiment()
+print(f"市场情绪: {sentiment['market_sentiment']}")
+
+# 获取新闻数据
+news_data = alt_collector.fetch_news_data(date="20241201", limit=20)
+print(f"新闻数据: {len(news_data)} 条")
+
+# 获取板块数据
+sector_data = alt_collector.fetch_sector_performance()
+print(f"板块数据: {len(sector_data)} 个板块")
+```
+```python
+    cpi_df = macro_data['CPI']
+    print(f"CPI数据: {len(cpi_df)} 条记录")
+    latest_cpi = cpi_df.iloc[-1]
+    print(f"最新CPI数据: {latest_cpi}")
+
+# 显示PMI数据
+if 'PMI' in macro_data and not macro_data['PMI'].empty:
+    pmi_df = macro_data['PMI']
+    print(f"PMI数据: {len(pmi_df)} 条记录")
+    latest_pmi = pmi_df.iloc[-1]
+    print(f"最新PMI数据: {latest_pmi}")
+```
+
+### ChineseFundamentalCollector
+
+专门用于采集中国上市公司财务数据的收集器。
+
+#### 构造函数
+```python
+ChineseFundamentalCollector(rate_limit: float = 0.5)
+```
+
+#### 主要方法
+
+**fetch_financial_statements(symbol: str, report_type: str = "资产负债表") -> pd.DataFrame**
+- 获取财务报表数据
+- 支持“资产负债表”、“利润表”、“现金流量表”
+
+**fetch_financial_indicators(symbol: str) -> Dict[str, Any]**
+- 获取主要财务指标
+- 包括PE、PB、ROE、ROA等
+
+**fetch_dividend_history(symbol: str) -> pd.DataFrame**
+- 获取分红配股历史
+- 包括分红比例、收益率等
+
+**fetch_share_structure(symbol: str) -> Dict[str, Any]**
+- 获取股本结构信息
+- 包括总股本、流通股、限售股
+
+**fetch_major_shareholders(symbol: str) -> pd.DataFrame**
+- 获取主要股东信息
+- 包括十大股东持股数量和比例
+
+**validate_financial_data(df: pd.DataFrame) -> bool**
+- 校验财务数据完整性和合理性
+
+#### 示例
+```python
+fund_collector = ChineseFundamentalCollector(rate_limit=0.5)
+symbol = "000001"  # 平安银行
+
+# 获取财务报表
+balance_sheet = fund_collector.fetch_financial_statements(symbol, "资产负债表")
+income_statement = fund_collector.fetch_financial_statements(symbol, "利润表")
+cash_flow = fund_collector.fetch_financial_statements(symbol, "现金流量表")
+
+print(f"资产负债表: {len(balance_sheet)} 条记录")
+print(f"利润表: {len(income_statement)} 条记录")
+print(f"现金流量表: {len(cash_flow)} 条记录")
+
+# 获取财务指标
+indicators = fund_collector.fetch_financial_indicators(symbol)
+print(f"市盈率 (PE): {indicators.get('pe_ratio')}")
+print(f"市净率 (PB): {indicators.get('pb_ratio')}")
+print(f"净资产收益率 (ROE): {indicators.get('roe')}")
+print(f"总资产报酬率 (ROA): {indicators.get('roa')}")
+print(f"毛利率: {indicators.get('gross_margin')}")
+
+# 获取分红历史
+dividend_data = fund_collector.fetch_dividend_history(symbol)
+print(f"分红记录: {len(dividend_data)} 条")
+if not dividend_data.empty:
+    latest_dividend = dividend_data.iloc[0]
+    print(f"最新分红: 每股 {latest_dividend.get('dividend_per_share', 0)} 元")
+    print(f"股息率: {latest_dividend.get('dividend_yield', 0)*100:.2f}%")
+
+# 获取股本结构
+share_structure = fund_collector.fetch_share_structure(symbol)
+print(f"总股本: {share_structure.get('total_shares', 0):,} 股")
+print(f"流通股: {share_structure.get('float_shares', 0):,} 股")
+print(f"限售股: {share_structure.get('restricted_shares', 0):,} 股")
+
+# 获取主要股东
+shareholders = fund_collector.fetch_major_shareholders(symbol)
+print(f"主要股东: {len(shareholders)} 位")
+if not shareholders.empty:
+    for _, shareholder in shareholders.head(3).iterrows():
+        name = shareholder.get('shareholder_name', 'N/A')
+        ratio = shareholder.get('shareholding_ratio', 0)
+        print(f"  {name}: {ratio}%")
+
+# 数据验证
+if fund_collector.validate_financial_data(balance_sheet):
+    print("财务数据验证通过")
+else:
+    print("财务数据验证失败")
 ```
 
 ### DataCleaner
@@ -302,41 +482,6 @@ stats = db_manager.get_database_stats()
 print(f"数据库大小: {stats['database_size_mb']:.2f} MB")
 ```
 
-### RealTimeProcessor
-
-实时数据处理和信号生成器。
-
-#### 构造函数
-```python
-RealTimeProcessor(config: Dict)
-```
-
-#### 主要方法
-
-**update_market_data(symbol: str, data: pd.DataFrame)**
-- 更新市场数据
-
-**generate_signals(symbol: str) -> List[MarketSignal]**
-- 生成交易信号
-
-**add_signal_callback(callback: Callable)**
-- 添加信号回调函数
-
-#### 示例
-```python
-processor = RealTimeProcessor(config={})
-
-# 添加信号回调
-def signal_handler(symbol, signals):
-    for signal in signals:
-        print(f"{symbol}: {signal.signal_type} @{signal.price:.2f}")
-
-processor.add_signal_callback(signal_handler)
-
-# 更新数据并生成信号
-processor.update_market_data("000001", market_data)
-signals = processor.generate_signals("000001")
-```
 
 ## 便捷函数
 
@@ -370,6 +515,38 @@ cleaned_data = quick_clean_data(raw_data, symbol="000001")
 ```python
 result = validate_dataframe(data, data_type="market")
 ```
+
+## 测试和示例
+
+### 运行完整测试
+```bash
+cd /Users/victor/Desktop/25fininnov/FinLoom-server
+python tests/module01_data_pipeline_test.py
+```
+
+该测试包含：
+- 中国股票数据收集（AkshareDataCollector）
+- 数据清洗和验证
+- 技术指标计算
+- 数据库存储
+- 中国宏观经济数据收集（GDP、CPI、PMI）
+- 中国财务数据收集（报表、指标、分红）
+- 异步数据收集演示
+
+### 宏观经济数据获取
+根据macroakshare.md文档，宏观数据使用真实的akshare接口：
+```python
+# 获取指定类型的宏观数据
+macro_data = alt_collector.fetch_macro_economic_data(indicator="GDP")  # 只获取GDP
+macro_data = alt_collector.fetch_macro_economic_data(indicator="CPI")  # 只获取CPI
+macro_data = alt_collector.fetch_macro_economic_data(indicator="PMI")  # 只获取PMI
+macro_data = alt_collector.fetch_macro_economic_data()  # 获取所有宏观数据
+```
+
+支持的真实宏观数据接口：
+- GDP：`ak.macro_china_gdp_yearly()` - 中国年度GDP数据
+- CPI：`ak.macro_china_cpi_monthly()` - 中国月度CPI数据
+- PMI：`ak.macro_china_pmi_yearly()` - 中国年度PMI数据
 
 ## 配置说明
 
