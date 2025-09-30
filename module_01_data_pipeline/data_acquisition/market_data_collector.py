@@ -6,16 +6,30 @@
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import aiohttp
-import numpy as np
 import pandas as pd
 import yfinance as yf
+
+# 尝试导入依赖
+try:
+    import yfinance as yf
+
+    HAS_YFINANCE = True
+except ImportError:
+    HAS_YFINANCE = False
+
+try:
+    import akshare as ak
+
+    HAS_AKSHARE = True
+except ImportError:
+    HAS_AKSHARE = False
+
 from common.constants import (
     DEFAULT_LOOKBACK_DAYS,
     MAX_SYMBOLS_PER_REQUEST,
-    TIMEOUT_SECONDS,
 )
 from common.data_structures import MarketData
 from common.exceptions import DataError
@@ -38,7 +52,7 @@ class DataSource:
 class MarketDataCollector:
     """市场数据采集器"""
 
-    # 数据源配置
+    # 数据源配置，支持多市场
     DATA_SOURCES = {
         "yahoo": DataSource(
             name="yahoo",
@@ -46,6 +60,13 @@ class MarketDataCollector:
             base_url="https://query1.finance.yahoo.com",
             rate_limit=2000,
             priority=1,
+        ),
+        "akshare": DataSource(
+            name="akshare",
+            api_key=None,
+            base_url="",  # akshare不需要URL
+            rate_limit=1000,
+            priority=1,  # 对于中国市场优先级最高
         ),
         "polygon": DataSource(
             name="polygon",
@@ -61,6 +82,20 @@ class MarketDataCollector:
             rate_limit=500,
             priority=3,
         ),
+        "binance": DataSource(
+            name="binance",
+            api_key=None,
+            base_url="https://api.binance.com",
+            rate_limit=1200,
+            priority=4,
+        ),
+        "hkex": DataSource(
+            name="hkex",
+            api_key=None,
+            base_url="https://www1.hkex.com.hk",
+            rate_limit=100,
+            priority=5,
+        ),
     }
 
     def __init__(self):
@@ -70,6 +105,14 @@ class MarketDataCollector:
         self.session: Optional[aiohttp.ClientSession] = None
         self.is_streaming = False
         self.stream_callbacks: List[Callable[[MarketData], None]] = []
+
+        # 检查依赖
+        if not HAS_YFINANCE:
+            logger.warning("yfinance not available. US market data will be limited.")
+        if not HAS_AKSHARE:
+            logger.warning(
+                "akshare not available. Chinese market data will be limited."
+            )
 
     async def initialize(self) -> None:
         """异步初始化
@@ -126,7 +169,9 @@ class MarketDataCollector:
         logger.info(f"Subscribed to {len(symbols)} symbols at {frequency} frequency")
         return True
 
-    async def fetch_realtime_data(self, symbols: List[str]) -> Dict[str, MarketData]:
+    async def fetch_realtime_data(
+        self, symbols: List[str], market: str = "US"
+    ) -> Dict[str, MarketData]:
         """获取实时数据
 
         Args:
@@ -146,8 +191,11 @@ class MarketDataCollector:
         # 分批请求
         for i in range(0, len(symbols), 10):
             batch = symbols[i : i + 10]
-            batch_data = await self._fetch_batch_realtime(batch)
-            result.update(batch_data)
+            try:
+                batch_data = await self._fetch_batch_realtime(batch, market=market)
+                result.update(batch_data)
+            except Exception as e:
+                logger.error(f"Batch realtime fetch failed for {batch}: {e}")
 
         return result
 
@@ -157,6 +205,7 @@ class MarketDataCollector:
         start_date: datetime,
         end_date: datetime,
         interval: str = "1d",
+        market: str = "US",
     ) -> pd.DataFrame:
         """获取历史数据
 
@@ -165,6 +214,7 @@ class MarketDataCollector:
             start_date: 开始日期
             end_date: 结束日期
             interval: 数据间隔
+            market: 市场类型 ("US", "CN", "HK")
 
         Returns:
             历史数据DataFrame
@@ -173,21 +223,70 @@ class MarketDataCollector:
             DataError: 数据获取失败
         """
         try:
-            ticker = yf.Ticker(symbol)
-            df = ticker.history(start=start_date, end=end_date, interval=interval)
+            if market == "CN" and HAS_AKSHARE:
+                # 使用akshare获取A股数据
+                start_str = start_date.strftime("%Y%m%d")
+                end_str = end_date.strftime("%Y%m%d")
 
-            if df.empty:
-                raise DataError(f"No data found for {symbol}")
+                df = ak.stock_zh_a_hist(
+                    symbol=symbol,
+                    period="daily",
+                    start_date=start_str,
+                    end_date=end_str,
+                    adjust="qfq",
+                )
 
-            # 标准化列名
-            df.columns = [col.lower() for col in df.columns]
-            df.index.name = "timestamp"
+                if df.empty:
+                    raise DataError(f"No data found for {symbol}")
+
+                # 标准化列名
+                column_mapping = {
+                    "日期": "timestamp",
+                    "开盘": "open",
+                    "收盘": "close",
+                    "最高": "high",
+                    "最低": "low",
+                    "成交量": "volume",
+                }
+                df = df.rename(columns=column_mapping)
+                df["timestamp"] = pd.to_datetime(df["timestamp"])
+                df.set_index("timestamp", inplace=True)
+
+            elif market in ["US", "HK"] and HAS_YFINANCE:
+                # 使用yfinance获取美股/港股数据
+                ticker = yf.Ticker(symbol)
+                df = ticker.history(start=start_date, end=end_date, interval=interval)
+
+                if df.empty:
+                    raise DataError(f"No data found for {symbol}")
+
+                # 标准化列名
+                df.columns = [col.lower() for col in df.columns]
+                df.index.name = "timestamp"
+
+            else:
+                # 回退到yfinance（如果可用）
+                if HAS_YFINANCE:
+                    ticker = yf.Ticker(symbol)
+                    df = ticker.history(
+                        start=start_date, end=end_date, interval=interval
+                    )
+
+                    if df.empty:
+                        raise DataError(f"No data found for {symbol}")
+
+                    # 标准化列名
+                    df.columns = [col.lower() for col in df.columns]
+                    df.index.name = "timestamp"
+                else:
+                    raise DataError("No suitable data source available")
 
             # 添加额外字段
             df["symbol"] = symbol
-            df["vwap"] = (df["high"] + df["low"] + df["close"]) / 3
+            if "high" in df.columns and "low" in df.columns and "close" in df.columns:
+                df["vwap"] = (df["high"] + df["low"] + df["close"]) / 3
 
-            logger.info(f"Fetched {len(df)} historical records for {symbol}")
+            logger.info(f"Fetched {len(df)} historical records for {symbol} ({market})")
             return df
 
         except Exception as e:
@@ -211,44 +310,119 @@ class MarketDataCollector:
         self.is_streaming = False
         logger.info("Stopped market data streaming")
 
-    async def _fetch_batch_realtime(self, symbols: List[str]) -> Dict[str, MarketData]:
+    async def _fetch_batch_realtime(
+        self, symbols: List[str], market: str = "US"
+    ) -> Dict[str, MarketData]:
         """批量获取实时数据
 
         Args:
             symbols: 股票代码列表
+            market: 市场类型 ("US", "CN", "HK", "CRYPTO")
 
         Returns:
             数据字典
         """
         result = {}
 
-        # 使用Yahoo Finance API
         for symbol in symbols:
             try:
-                ticker = yf.Ticker(symbol)
-                info = ticker.info
+                if market == "CN" and HAS_AKSHARE:
+                    # 使用akshare获取A股实时数据
+                    realtime_data = ak.stock_zh_a_spot_em()
+                    symbol_data = realtime_data[realtime_data["代码"] == symbol]
 
-                # 获取最新报价
-                market_data = MarketData(
-                    symbol=symbol,
-                    timestamp=datetime.now(),
-                    open=info.get("regularMarketOpen", 0),
-                    high=info.get("regularMarketDayHigh", 0),
-                    low=info.get("regularMarketDayLow", 0),
-                    close=info.get("regularMarketPrice", 0),
-                    volume=info.get("regularMarketVolume", 0),
-                    bid=info.get("bid", None),
-                    ask=info.get("ask", None),
-                    bid_size=info.get("bidSize", None),
-                    ask_size=info.get("askSize", None),
-                )
+                    if not symbol_data.empty:
+                        row = symbol_data.iloc[0]
+                        market_data = MarketData(
+                            symbol=symbol,
+                            timestamp=datetime.now(),
+                            open=float(row.get("今开", 0)),
+                            high=float(row.get("最高", 0)),
+                            low=float(row.get("最低", 0)),
+                            close=float(row.get("最新价", 0)),
+                            volume=int(row.get("成交量", 0)),
+                            bid=None,
+                            ask=None,
+                            bid_size=None,
+                            ask_size=None,
+                        )
+                    else:
+                        continue
+
+                elif market == "US" and HAS_YFINANCE:
+                    # 使用yfinance获取美股数据
+                    ticker = yf.Ticker(symbol)
+                    info = ticker.info
+                    market_data = MarketData(
+                        symbol=symbol,
+                        timestamp=datetime.now(),
+                        open=info.get("regularMarketOpen", 0),
+                        high=info.get("regularMarketDayHigh", 0),
+                        low=info.get("regularMarketDayLow", 0),
+                        close=info.get("regularMarketPrice", 0),
+                        volume=info.get("regularMarketVolume", 0),
+                        bid=info.get("bid", None),
+                        ask=info.get("ask", None),
+                        bid_size=info.get("bidSize", None),
+                        ask_size=info.get("askSize", None),
+                    )
+                elif market == "CRYPTO":
+                    # 示例：Binance现货API
+                    import requests
+
+                    url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}"
+                    resp = requests.get(url, timeout=10)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    market_data = MarketData(
+                        symbol=symbol,
+                        timestamp=datetime.now(),
+                        open=float(data.get("openPrice", 0)),
+                        high=float(data.get("highPrice", 0)),
+                        low=float(data.get("lowPrice", 0)),
+                        close=float(data.get("lastPrice", 0)),
+                        volume=int(float(data.get("volume", 0))),
+                        bid=float(data.get("bidPrice", 0)),
+                        ask=float(data.get("askPrice", 0)),
+                        bid_size=int(float(data.get("bidQty", 0))),
+                        ask_size=int(float(data.get("askQty", 0))),
+                    )
+                elif market == "HK":
+                    # 港股数据，尝试使用yfinance（添加.HK后缀）
+                    if HAS_YFINANCE:
+                        hk_symbol = (
+                            f"{symbol}.HK" if not symbol.endswith(".HK") else symbol
+                        )
+                        ticker = yf.Ticker(hk_symbol)
+                        info = ticker.info
+                        market_data = MarketData(
+                            symbol=symbol,
+                            timestamp=datetime.now(),
+                            open=info.get("regularMarketOpen", 0),
+                            high=info.get("regularMarketDayHigh", 0),
+                            low=info.get("regularMarketDayLow", 0),
+                            close=info.get("regularMarketPrice", 0),
+                            volume=info.get("regularMarketVolume", 0),
+                        )
+                    else:
+                        # 伪实现
+                        market_data = MarketData(
+                            symbol=symbol,
+                            timestamp=datetime.now(),
+                            open=0,
+                            high=0,
+                            low=0,
+                            close=0,
+                            volume=0,
+                        )
+                else:
+                    raise DataError(f"Unsupported market: {market}")
 
                 result[symbol] = market_data
                 self.data_cache[symbol] = market_data
-
+                logger.info(f"Fetched realtime data for {symbol} ({market})")
             except Exception as e:
-                logger.error(f"Failed to fetch data for {symbol}: {e}")
-
+                logger.error(f"Failed to fetch data for {symbol} ({market}): {e}")
         return result
 
     async def _streaming_loop(self) -> None:
@@ -293,21 +467,49 @@ class MarketDataCollector:
         Returns:
             是否有效
         """
-        # 基本验证：1-5个大写字母
-        if not symbol or len(symbol) > 5:
+        # 基本验证：不为空且不超过10个字符
+        if not symbol or len(symbol) > 10:
             return False
-        return symbol.isalpha() and symbol.isupper()
+        return True
+
+    def _detect_market(self, symbol: str) -> str:
+        """根据股票代码自动检测市场类型
+
+        Args:
+            symbol: 股票代码
+
+        Returns:
+            市场类型 ("CN", "US", "HK", "CRYPTO")
+        """
+        symbol = symbol.upper()
+
+        # A股：6位数字
+        if symbol.isdigit() and len(symbol) == 6:
+            return "CN"
+
+        # 港股：以.HK结尾或以0-9开头的4-5位数字
+        if symbol.endswith(".HK") or (symbol.isdigit() and len(symbol) in [4, 5]):
+            return "HK"
+
+        # 加密货币：常见的加密货币代码
+        crypto_symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "DOTUSDT"]
+        if symbol in crypto_symbols or "USDT" in symbol:
+            return "CRYPTO"
+
+        # 默认为美股
+        return "US"
 
 
 # 模块级别函数
 async def collect_market_data(
-    symbols: List[str], lookback_days: int = DEFAULT_LOOKBACK_DAYS
+    symbols: List[str], lookback_days: int = DEFAULT_LOOKBACK_DAYS, market: str = "AUTO"
 ) -> pd.DataFrame:
     """收集市场数据的便捷函数
 
     Args:
         symbols: 股票代码列表
         lookback_days: 回看天数
+        market: 市场类型，"AUTO"为自动检测
 
     Returns:
         市场数据DataFrame
@@ -321,13 +523,64 @@ async def collect_market_data(
 
         all_data = []
         for symbol in symbols:
+            # 自动检测市场类型
+            if market == "AUTO":
+                detected_market = collector._detect_market(symbol)
+            else:
+                detected_market = market
+
             df = collector.fetch_historical_data(
-                symbol=symbol, start_date=start_date, end_date=end_date
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+                market=detected_market,
             )
             all_data.append(df)
 
         result = pd.concat(all_data, ignore_index=True)
         return result
+
+    finally:
+        await collector.cleanup()
+
+
+async def collect_realtime_data(
+    symbols: List[str], market: str = "AUTO"
+) -> Dict[str, MarketData]:
+    """收集实时数据的便捷函数
+
+    Args:
+        symbols: 股票代码列表
+        market: 市场类型，"AUTO"为自动检测
+
+    Returns:
+        实时数据字典
+    """
+    collector = MarketDataCollector()
+    await collector.initialize()
+
+    try:
+        # 按市场分组
+        market_groups = {}
+        for symbol in symbols:
+            if market == "AUTO":
+                detected_market = collector._detect_market(symbol)
+            else:
+                detected_market = market
+
+            if detected_market not in market_groups:
+                market_groups[detected_market] = []
+            market_groups[detected_market].append(symbol)
+
+        # 分市场获取数据
+        all_data = {}
+        for market_type, market_symbols in market_groups.items():
+            market_data = await collector.fetch_realtime_data(
+                market_symbols, market_type
+            )
+            all_data.update(market_data)
+
+        return all_data
 
     finally:
         await collector.cleanup()
