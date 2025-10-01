@@ -12,10 +12,14 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import DataLoader, Dataset
+
 from common.constants import DEFAULT_BATCH_SIZE, EARLY_STOPPING_PATIENCE, MAX_EPOCHS
 from common.exceptions import ModelError
 from common.logging_system import setup_logger
-from torch.utils.data import DataLoader, Dataset
+from module_01_data_pipeline import get_database_manager
+
+from ..storage_management import get_feature_database_manager
 
 logger = setup_logger("neural_factor_discovery")
 
@@ -29,11 +33,20 @@ class FactorConfig:
     output_dim: int
     dropout_rate: float = 0.3
     learning_rate: float = 0.001
-    batch_size: int = DEFAULT_BATCH_SIZE
-    max_epochs: int = MAX_EPOCHS
-    early_stopping_patience: int = EARLY_STOPPING_PATIENCE
+    batch_size: int = 32  # 使用默认值而不是导入的常量
+    max_epochs: int = 100  # 使用默认值而不是导入的常量
+    early_stopping_patience: int = 10  # 使用默认值而不是导入的常量
     use_attention: bool = True
     use_residual: bool = True
+
+    # 兼容性别名
+    @property
+    def epochs(self):
+        return self.max_epochs
+
+    @epochs.setter
+    def epochs(self, value):
+        self.max_epochs = value
 
 
 @dataclass
@@ -212,6 +225,78 @@ class NeuralFactorDiscovery:
             "ic": [],
             "ir": [],
         }
+
+    def load_features_from_module01(
+        self, symbols: List[str], start_date: str, end_date: str
+    ) -> pd.DataFrame:
+        """从Module01加载特征数据
+
+        Args:
+            symbols: 股票代码列表
+            start_date: 开始日期
+            end_date: 结束日期
+
+        Returns:
+            特征DataFrame
+        """
+        db_manager = get_database_manager()
+        all_features = []
+
+        for symbol in symbols:
+            # 获取股票价格数据
+            stock_data = db_manager.get_stock_prices(symbol, start_date, end_date)
+            if stock_data.empty:
+                logger.warning(f"No stock data found for {symbol}")
+                continue
+
+            # 计算收益率和其他基础特征
+            stock_data["returns"] = stock_data["close"].pct_change()
+            stock_data["log_returns"] = np.log(
+                stock_data["close"] / stock_data["close"].shift(1)
+            )
+            stock_data["volatility"] = stock_data["returns"].rolling(window=20).std()
+            stock_data["volume_ratio"] = (
+                stock_data["volume"] / stock_data["volume"].rolling(window=20).mean()
+            )
+
+            # 添加股票标识
+            stock_data["symbol"] = symbol
+            stock_data = stock_data.dropna()
+
+            if not stock_data.empty:
+                all_features.append(stock_data)
+
+        if all_features:
+            combined_features = pd.concat(all_features, ignore_index=True)
+            logger.info(
+                f"Loaded features for {len(symbols)} symbols: {combined_features.shape}"
+            )
+            return combined_features
+        else:
+            logger.warning("No features loaded from Module01")
+            return pd.DataFrame()
+
+    def save_discovered_factors(self, factors: List[DiscoveredFactor]) -> bool:
+        """保存发现的因子到数据库
+
+        Args:
+            factors: 发现的因子列表
+
+        Returns:
+            是否保存成功
+        """
+        feature_db = get_feature_database_manager()
+        success_count = 0
+
+        for factor in factors:
+            try:
+                if feature_db.save_neural_factor(factor):
+                    success_count += 1
+            except Exception as e:
+                logger.error(f"Failed to save factor {factor.factor_id}: {e}")
+
+        logger.info(f"Saved {success_count}/{len(factors)} neural factors to database")
+        return success_count == len(factors)
 
     def discover_neural_factors(
         self, features: pd.DataFrame, returns: pd.Series, validation_split: float = 0.2
