@@ -370,7 +370,7 @@ export default MarketAnalysisComponent;
 
 ## 🧪 测试和验证
 
-### 运行综合测试
+### 运行测试
 ```bash
 # 激活conda环境
 conda activate study
@@ -384,41 +384,43 @@ python tests/module04_market_analysis_test.py
 
 ### 测试覆盖内容
 1. **模块导入测试**: 验证所有组件正确导入
-2. **真实数据采集**: 测试Module 1数据集成
+2. **真实数据采集**: 测试数据源集成
 3. **情感分析功能**: 测试FIN-R1和增强情感分析
-4. **数据库操作**: 测试SQLite存储和检索
-5. **API结构**: 验证REST API端点
-6. **集成工作流**: 端到端数据流测试
+4. **异常检测**: 测试价格、成交量和多维异常检测
+5. **相关性分析**: 测试股票相关性计算
+6. **市场状态检测**: 测试HMM和其他状态检测方法
+7. **数据库操作**: 测试SQLite存储和检索
+8. **API结构**: 验证REST API端点
+9. **集成工作流**: 端到端数据流测试
 
 ### 预期测试结果
 ```
 Module 04 Market Analysis - Comprehensive Test Suite
 ============================================================
-Testing enhanced trading agents integration with real data
+Testing market analysis with real A-share data
 Database: /Users/victor/Desktop/25fininnov/FinLoom-server/data/module04_market_analysis.db
 ============================================================
 
 Test 1: Module Imports Test
-✓ Module 1 data pipeline imports successful
-✓ Module 4 sentiment analysis imports successful
-✓ Module 4 enhanced sentiment analysis imports successful
-✓ Module 4 database imports successful
-✓ Module 4 API imports successful
+✓ Sentiment analysis imports successful
+✓ Anomaly detection imports successful
+✓ Correlation analysis imports successful
+✓ Regime detection imports successful
+✓ Database imports successful
+✓ API imports successful
 
-Test 2: Real Data Collection Test
+Test 2: Real Data Integration Test
 ✓ 000001: 平安银行 - 银行
 ✓ 600036: 招商银行 - 银行
 ✓ 000858: 五粮液 - 白酒
-✓ News data: 30 records
-✓ Sector data: 28 records
+✓ Data integration successful
 
 🎉 ALL TESTS PASSED! Module 04 is ready for use.
 ```
 
+## ❓ 常见问题
 
-### 常见问题
-
-#### 1. 导入错误
+### 1. 导入错误
 ```bash
 ImportError: No module named 'module_01_data_pipeline'
 ```
@@ -427,23 +429,26 @@ ImportError: No module named 'module_01_data_pipeline'
 conda activate study
 ```
 
-#### 2. 数据库连接错误
+### 2. 数据库连接错误
 ```bash
 sqlite3.OperationalError: database is locked
 ```
 **解决方案**: 检查数据库文件权限，重启服务
 
-#### 3. API连接超时
+### 3. API连接问题
 ```bash
-TimeoutError: API request timed out
+ConnectionError: Failed to connect to API
 ```
-**解决方案**: 增加超时时间或检查网络连接
+**解决方案**: 确保主服务器正在运行
+```bash
+python main.py
+```
 
-#### 4. FIN-R1模型加载失败
+### 4. FIN-R1模型问题
 ```bash
-Model not found at /Users/victor/Desktop/25fininnov/Fin-R1
+Model not found or failed to load
 ```
-**解决方案**: 检查FIN-R1模型路径，或使用关键词分析后备方案
+**解决方案**: 检查模型路径或使用关键词分析后备方案
 
 ### 调试模式
 ```python
@@ -451,6 +456,6 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 # 启用详细日志
-from module_04_market_analysis.sentiment_analysis.fin_r1_sentiment import get_sentiment_analyzer
-analyzer = get_sentiment_analyzer()
+from module_04_market_analysis.sentiment_analysis.fin_r1_sentiment import FINR1SentimentAnalyzer
+analyzer = FINR1SentimentAnalyzer()
 ```

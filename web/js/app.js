@@ -656,51 +656,185 @@ class FinLoomApp {
         this.showLoading();
 
         try {
-            // 首先尝试调用新的多智能体分析API
-            const agentApiUrl = `${this.apiBaseUrl}/api/v1/market/analysis/agents`;
-            console.log('Calling TradingAgents analysis API:', agentApiUrl);
+            console.log('Starting comprehensive market analysis...');
             
-            const agentResponse = await fetch(agentApiUrl, {
+            // 主要股票列表
+            const symbols = ['000001', '000002', '600000', '600036', '601318'];
+            
+            // 1. 情感分析
+            console.log('Step 1: Advanced sentiment analysis...');
+            const sentimentApiUrl = `${this.apiBaseUrl}/api/v1/analysis/sentiment/analyze`;
+            const sentimentResponse = await fetch(sentimentApiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    symbols: ['000001', '000002', '600000'], // 默认分析一些主要股票
-                    market_data: null,
-                    context: {
-                        investment_text: text,
-                        amount: parseFloat(amount) || 1000000,
-                        risk_tolerance: riskTolerance || 'moderate',
-                        analysis_depth: 'medium'
-                    },
-                    priority: 'normal',
-                    timeout: 300.0
+                    texts: [text],
+                    text_type: 'investment_requirement',
+                    symbols: symbols,
+                    use_local_model: true,
+                    batch_size: 1
                 })
             });
             
-            if (!agentResponse.ok) {
-                throw new Error(`HTTP error! status: ${agentResponse.status}`);
+            let sentimentResult = null;
+            if (sentimentResponse.ok) {
+                sentimentResult = await sentimentResponse.json();
+                console.log('Advanced sentiment analysis completed:', sentimentResult);
+            } else {
+                console.warn('Advanced sentiment analysis failed, using fallback');
             }
             
-            const agentResult = await agentResponse.json();
-            console.log('TradingAgents API response:', agentResult);
-            console.log('Response status:', agentResult.status);
-            console.log('Has individual_analyses:', 'individual_analyses' in agentResult);
-            console.log('Individual analyses:', agentResult.individual_analyses);
+            // 2. 异常检测分析
+            console.log('Step 2: Anomaly detection analysis...');
+            const anomalyPromises = symbols.slice(0, 3).map(async (symbol) => {
+                try {
+                    const anomalyResponse = await fetch(`${this.apiBaseUrl}/api/v1/analysis/anomaly/detect`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            symbol: symbol,
+                            detection_method: 'all',
+                            start_date: new Date(Date.now() - 90*24*60*60*1000).toISOString().split('T')[0]
+                        })
+                    });
+                    
+                    if (anomalyResponse.ok) {
+                        return await anomalyResponse.json();
+                    }
+                } catch (e) {
+                    console.warn(`Anomaly detection failed for ${symbol}:`, e);
+                }
+                return null;
+            });
             
-            // 尝试显示结果，如果失败则使用简单显示
+            const anomalyResults = await Promise.all(anomalyPromises);
+            const validAnomalyResults = anomalyResults.filter(r => r !== null);
+            console.log('Anomaly detection completed:', validAnomalyResults.length, 'results');
+            
+            // 3. 相关性分析
+            console.log('Step 3: Correlation analysis...');
+            let correlationResult = null;
             try {
-                this.displayAgentAnalysisResult(agentResult);
-                this.showAlert('多智能体分析完成', 'success');
-            } catch (displayError) {
-                console.error('Display method failed, using fallback:', displayError);
-                this.displaySimpleAnalysisResult(agentResult);
-                this.showAlert('多智能体分析完成（简化显示）', 'success');
+                const correlationResponse = await fetch(`${this.apiBaseUrl}/api/v1/analysis/correlation/analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        symbols: symbols,
+                        method: 'pearson',
+                        window_size: 60
+                    })
+                });
+                
+                if (correlationResponse.ok) {
+                    correlationResult = await correlationResponse.json();
+                    console.log('Correlation analysis completed:', correlationResult);
+                }
+            } catch (e) {
+                console.warn('Correlation analysis failed:', e);
             }
+            
+            // 4. 市场状态检测
+            console.log('Step 4: Market regime detection...');
+            let regimeResult = null;
+            try {
+                const regimeResponse = await fetch(`${this.apiBaseUrl}/api/v1/analysis/regime/detect`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        symbols: symbols.slice(0, 2),
+                        regime_count: 3,
+                        detection_methods: ['hmm', 'clustering']
+                    })
+                });
+                
+                if (regimeResponse.ok) {
+                    regimeResult = await regimeResponse.json();
+                    console.log('Market regime detection completed:', regimeResult);
+                }
+            } catch (e) {
+                console.warn('Market regime detection failed:', e);
+            }
+            
+            // 5. 如果所有高级分析都失败，使用基础分析
+            if (!sentimentResult && !correlationResult && !regimeResult && validAnomalyResults.length === 0) {
+                console.log('All advanced analysis failed, trying basic sentiment analysis...');
+                const basicSentimentResponse = await fetch(`${this.apiBaseUrl}/api/v1/market/sentiment/analyze`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        symbols: symbols,
+                        include_news: true,
+                        include_social: true,
+                        days_back: 7
+                    })
+                });
+                
+                if (basicSentimentResponse.ok) {
+                    const basicSentimentResult = await basicSentimentResponse.json();
+                    this.displaySentimentAnalysisResult(basicSentimentResult);
+                    this.showAlert('基础情感分析完成', 'success');
+                    return;
+                }
+            }
+            
+            // 显示综合分析结果
+            this.displayComprehensiveAnalysisResult({
+                investment_text: text,
+                amount: amount,
+                risk_tolerance: riskTolerance,
+                sentiment_analysis: sentimentResult,
+                anomaly_analysis: validAnomalyResults,
+                correlation_analysis: correlationResult,
+                regime_analysis: regimeResult,
+                symbols: symbols
+            });
+            
+            this.showAlert('综合市场分析完成！', 'success');
+            
         } catch (error) {
-            console.error('分析失败:', error);
-            this.showAlert(`分析失败，请稍后重试: ${error.message}`, 'danger');
+            console.error('综合分析失败:', error);
+            
+            // 最后的备用方案：使用主服务器分析API
+            try {
+                const fallbackApiUrl = `${this.apiBaseUrl}/api/v1/analyze`;
+                console.log('Trying fallback analysis API:', fallbackApiUrl);
+                
+                const fallbackResponse = await fetch(fallbackApiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        amount: parseFloat(amount) || 1000000,
+                        risk_tolerance: riskTolerance || 'moderate'
+                    })
+                });
+                
+                if (!fallbackResponse.ok) {
+                    throw new Error(`HTTP error! status: ${fallbackResponse.status}`);
+                }
+                
+                const fallbackResult = await fallbackResponse.json();
+                console.log('Fallback analysis API response:', fallbackResult);
+                
+                // 显示结果
+                this.displayAnalysisResult(fallbackResult);
+                this.showAlert('分析完成（使用备用方案）', 'success');
+            } catch (fallbackError) {
+                console.error('备用分析也失败:', fallbackError);
+                this.showAlert(`分析失败，请稍后重试: ${error.message}`, 'danger');
+            }
         } finally {
             this.hideLoading();
         }
@@ -850,10 +984,9 @@ class FinLoomApp {
         }, 100); // 延迟确保DOM更新完成
     }
 
-    displayAgentAnalysisResult(result) {
-        console.log('Displaying TradingAgents analysis result:', result);
+    displayComprehensiveAnalysisResult(analysisData) {
+        console.log('Displaying comprehensive analysis result:', analysisData);
         
-        // 简化显示逻辑，避免复杂的DOM操作
         const resultDiv = document.getElementById('analysis-result');
         const contentDiv = document.getElementById('analysis-content');
         
@@ -865,105 +998,379 @@ class FinLoomApp {
         // 显示结果区域
         resultDiv.style.display = 'block';
         
-        if (result.status !== 'success') {
+        const {
+            investment_text,
+            amount,
+            risk_tolerance,
+            sentiment_analysis,
+            anomaly_analysis,
+            correlation_analysis,
+            regime_analysis,
+            symbols
+        } = analysisData;
+        
+        let html = `
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle me-2"></i>
+                综合市场分析完成！
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-line me-2"></i>
+                        投资需求分析
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>投资需求:</strong> ${investment_text}</p>
+                            <p><strong>投资金额:</strong> ¥${parseFloat(amount || 0).toLocaleString()}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>风险偏好:</strong> 
+                                <span class="badge ${
+                                    risk_tolerance === 'conservative' ? 'bg-success' :
+                                    risk_tolerance === 'moderate' ? 'bg-warning' :
+                                    risk_tolerance === 'aggressive' ? 'bg-danger' : 'bg-secondary'
+                                }">
+                                    ${risk_tolerance === 'conservative' ? '保守型' :
+                                      risk_tolerance === 'moderate' ? '稳健型' :
+                                      risk_tolerance === 'aggressive' ? '激进型' :
+                                      risk_tolerance === 'very_aggressive' ? '非常激进型' : '未知'}
+                                </span>
+                            </p>
+                            <p><strong>分析股票:</strong> ${symbols.join(', ')}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // 情感分析结果
+        if (sentiment_analysis) {
+            html += `
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-heart me-2"></i>
+                            智能情感分析 (FIN-R1模型)
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>分析器:</strong> ${sentiment_analysis.analyzer_model || 'FIN-R1'}</p>
+                                <p><strong>文本数量:</strong> ${sentiment_analysis.text_count || 1}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>整体情感:</strong> 
+                                    <span class="badge ${
+                                        sentiment_analysis.results?.overall_sentiment > 0 ? 'bg-success' :
+                                        sentiment_analysis.results?.overall_sentiment < 0 ? 'bg-danger' : 'bg-warning'
+                                    }">
+                                        ${sentiment_analysis.results?.overall_sentiment > 0 ? '正面' :
+                                          sentiment_analysis.results?.overall_sentiment < 0 ? '负面' : '中性'}
+                                    </span>
+                                </p>
+                                <p><strong>平均置信度:</strong> ${((sentiment_analysis.results?.average_confidence || 0) * 100).toFixed(1)}%</p>
+                            </div>
+                        </div>
+                        ${sentiment_analysis.results?.sentiment_distribution ? `
+                        <div class="mt-3">
+                            <h6>情感分布:</h6>
+                            <div class="row text-center">
+                                <div class="col-md-4">
+                                    <div class="financial-stat">
+                                        <span class="value text-success">${((sentiment_analysis.results.sentiment_distribution.positive || 0) * 100).toFixed(1)}%</span>
+                                        <span class="label">正面情感</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="financial-stat">
+                                        <span class="value text-warning">${((sentiment_analysis.results.sentiment_distribution.neutral || 0) * 100).toFixed(1)}%</span>
+                                        <span class="label">中性情感</span>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="financial-stat">
+                                        <span class="value text-danger">${((sentiment_analysis.results.sentiment_distribution.negative || 0) * 100).toFixed(1)}%</span>
+                                        <span class="label">负面情感</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 异常检测结果
+        if (anomaly_analysis && anomaly_analysis.length > 0) {
+            html += `
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            异常检测分析
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+            `;
+            
+            anomaly_analysis.forEach((anomaly, index) => {
+                if (anomaly && anomaly.results) {
+                    const totalAnomalies = Object.values(anomaly.results).reduce((sum, result) => sum + (result.count || 0), 0);
+                    html += `
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-left-warning">
+                                <div class="card-body">
+                                    <h6 class="card-title text-primary">${anomaly.symbol}</h6>
+                                    <p class="mb-1"><strong>检测方法:</strong> ${anomaly.detection_method}</p>
+                                    <p class="mb-1"><strong>异常数量:</strong> ${totalAnomalies}</p>
+                                    <p class="mb-0"><strong>棄测期间:</strong> ${anomaly.detection_period?.start_date} 至 ${anomaly.detection_period?.end_date}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            
+            html += `
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 相关性分析结果
+        if (correlation_analysis) {
+            html += `
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-project-diagram me-2"></i>
+                            股票相关性分析
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>分析方法:</strong> ${correlation_analysis.correlation_method}</p>
+                                <p><strong>分析股票:</strong> ${correlation_analysis.symbols.join(', ')}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>分析期间:</strong> ${correlation_analysis.analysis_period?.start_date} 至 ${correlation_analysis.analysis_period?.end_date}</p>
+                                <p><strong>高相关对:</strong> ${correlation_analysis.highly_correlated_pairs?.length || 0} 对</p>
+                            </div>
+                        </div>
+                        ${correlation_analysis.insights && correlation_analysis.insights.length > 0 ? `
+                        <div class="mt-3">
+                            <h6>分析洞察:</h6>
+                            <ul class="list-unstyled">
+                                ${correlation_analysis.insights.map(insight => `<li class="mb-1"><i class="fas fa-lightbulb text-warning me-2"></i>${insight}</li>`).join('')}
+                            </ul>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 市场状态检测结果
+        if (regime_analysis) {
+            html += `
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-wave-square me-2"></i>
+                            市场状态检测
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>当前状态:</strong> 
+                                    <span class="badge bg-info">${regime_analysis.current_regime?.regime || '未知'}</span>
+                                </p>
+                                <p><strong>置信度:</strong> ${((regime_analysis.current_regime?.confidence || 0) * 100).toFixed(1)}%</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>持续天数:</strong> ${regime_analysis.current_regime?.duration_days || 0} 天</p>
+                                <p><strong>检测方法:</strong> ${regime_analysis.detection_methods?.join(', ') || '未知'}</p>
+                            </div>
+                        </div>
+                        ${regime_analysis.stress_indicators ? `
+                        <div class="mt-3">
+                            <h6>市场压力指标:</h6>
+                            <div class="small text-muted">
+                                <p>检测到的市场状态显示当前市场情况。</p>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 投资建议汇总
+        html += `
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-lightbulb me-2"></i>
+                        综合投资建议
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h6>基于综合分析的建议:</h6>
+                        <ul class="mb-0">
+        `;
+        
+        // 基于各种分析结果生成建议
+        if (sentiment_analysis?.results?.overall_sentiment > 0) {
+            html += '<li>情感分析显示正面趋势，市场情绪较好，可考虑适度增持。</li>';
+        } else if (sentiment_analysis?.results?.overall_sentiment < 0) {
+            html += '<li>情感分析显示负面趋势，建议谨慎操作，等待更好时机。</li>';
+        }
+        
+        if (anomaly_analysis && anomaly_analysis.length > 0) {
+            const totalAnomalies = anomaly_analysis.reduce((sum, anomaly) => {
+                return sum + Object.values(anomaly.results || {}).reduce((s, r) => s + (r.count || 0), 0);
+            }, 0);
+            
+            if (totalAnomalies > 5) {
+                html += '<li>检测到较多异常，市场波动较大，建议控制仓位和风险。</li>';
+            } else if (totalAnomalies > 0) {
+                html += '<li>检测到少量异常，属于正常波动范围，可正常操作。</li>';
+            }
+        }
+        
+        if (correlation_analysis?.highly_correlated_pairs?.length > 3) {
+            html += '<li>股票间相关性较高，建议分散投资，减少集中度风险。</li>';
+        }
+        
+        if (risk_tolerance === 'conservative') {
+            html += '<li>根据您的保守型风险偏好，建议优先考虑稳健型股票和债券。</li>';
+        } else if (risk_tolerance === 'aggressive') {
+            html += '<li>根据您的激进型风险偏好，可考虑成长型股票和高收益投资机会。</li>';
+        }
+        
+        html += `
+                            <li>建议定期关注市场动态，及时调整投资策略。</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        contentDiv.innerHTML = html;
+        
+        // 滚动到结果区域
+        setTimeout(() => {
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
+    }
+
+    displaySentimentAnalysisResult(result) {
+        console.log('Displaying sentiment analysis result:', result);
+        
+        const resultDiv = document.getElementById('analysis-result');
+        const contentDiv = document.getElementById('analysis-content');
+        
+        if (!resultDiv || !contentDiv) {
+            console.error('Required DOM elements not found');
+            return;
+        }
+        
+        // 显示结果区域
+        resultDiv.style.display = 'block';
+        
+        if (result.status !== 'completed') {
             contentDiv.innerHTML = `
-                <div class="alert alert-danger">
+                <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle me-2"></i>
-                    多智能体分析失败: ${result.message || '未知错误'}
+                    情感分析未完成: ${result.message || '未知错误'}
                 </div>
             `;
             return;
         }
         
         // 提取关键数据
-        const consensusRecommendation = result.consensus_recommendation;
-        const consensusConfidence = result.consensus_confidence;
-        const consensusReasoning = result.consensus_reasoning;
-        const individualAnalyses = result.individual_analyses || [];
-        const debateResult = result.debate_result;
+        const individualResults = result.individual_results || {};
+        const marketSentiment = result.market_sentiment || {};
+        const symbols = result.symbols || [];
         
-        // 生成简化的HTML内容
+        // 生成HTML内容
         let html = `
             <div class="alert alert-success">
                 <i class="fas fa-check-circle me-2"></i>
-                多智能体分析完成！
+                情感分析完成！
             </div>
             
             <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-robot me-2"></i>
-                        最终推荐
+                        <i class="fas fa-chart-line me-2"></i>
+                        市场整体情感
                     </h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-6">
-                            <p><strong>操作:</strong> 
-                                <span class="badge ${consensusRecommendation === 'buy' ? 'bg-success' : consensusRecommendation === 'sell' ? 'bg-danger' : 'bg-warning'}">
-                                    ${consensusRecommendation === 'buy' ? '买入' : consensusRecommendation === 'sell' ? '卖出' : '持有'}
+                        <div class="col-md-4">
+                            <p><strong>情感分数:</strong> ${(marketSentiment.sentiment_score || 0).toFixed(3)}</p>
+                        </div>
+                        <div class="col-md-4">
+                            <p><strong>情感标签:</strong> 
+                                <span class="badge ${(marketSentiment.sentiment_score || 0) > 0 ? 'bg-success' : 'bg-warning'}">
+                                    ${(marketSentiment.sentiment_score || 0) > 0 ? '正面' : '中性'}
                                 </span>
                             </p>
-                            <p><strong>目标股票:</strong> ${result.symbols ? result.symbols.join(', ') : '无'}</p>
-                            <p><strong>置信度:</strong> ${(consensusConfidence * 100).toFixed(1)}%</p>
                         </div>
-                        <div class="col-md-6">
-                            <p><strong>执行时间:</strong> ${result.execution_time ? result.execution_time.toFixed(3) : 'N/A'}秒</p>
-                            <p><strong>分析股票数:</strong> ${result.symbols ? result.symbols.length : 0}只</p>
-                            <p><strong>共识程度:</strong> ${debateResult ? (debateResult.consensus_score * 100).toFixed(1) : 'N/A'}%</p>
+                        <div class="col-md-4">
+                            <p><strong>置信度:</strong> ${((marketSentiment.confidence || 0) * 100).toFixed(1)}%</p>
                         </div>
                     </div>
                     <div class="mt-3">
-                        <h6 class="text-primary">推荐理由</h6>
-                        <p class="text-muted">${consensusReasoning}</p>
+                        <p><strong>分析股票:</strong> ${symbols.join(', ')}</p>
+                        <p><strong>分析时间:</strong> ${result.execution_time ? result.execution_time.toFixed(2) : 'N/A'}秒</p>
                     </div>
                 </div>
             </div>
         `;
         
-        // 添加各智能体分析
-        if (individualAnalyses.length > 0) {
+        // 添加个股情感分析
+        if (Object.keys(individualResults).length > 0) {
             html += `
                 <div class="card mb-4">
                     <div class="card-header">
-                        <h6 class="mb-0">各智能体分析详情</h6>
+                        <h6 class="mb-0">个股情感分析</h6>
                     </div>
                     <div class="card-body">
                         <div class="row">
             `;
             
-            individualAnalyses.forEach(analysis => {
+            Object.entries(individualResults).forEach(([symbol, data]) => {
+                const sentimentScore = data.sentiment_score || 0;
+                const confidence = data.confidence || 0;
+                const sentimentLabel = sentimentScore > 0 ? '正面' : sentimentScore < 0 ? '负面' : '中性';
+                
                 html += `
                     <div class="col-md-6 mb-3">
                         <div class="card border-left-primary">
                             <div class="card-body">
-                                <h6 class="card-title text-primary">
-                                    <i class="fas fa-user-tie me-1"></i>
-                                    ${analysis.agent_name}
-                                </h6>
-                                <p class="card-text small">${analysis.reasoning}</p>
-                                <div class="d-flex justify-content-between">
-                                    <small class="text-muted">
-                                        推荐: ${analysis.recommendation === 'buy' ? '买入' : analysis.recommendation === 'sell' ? '卖出' : '持有'}
-                                    </small>
-                                    <small class="text-muted">
-                                        置信度: ${(analysis.confidence * 100).toFixed(1)}%
-                                    </small>
-                                </div>
-                                ${analysis.key_factors && analysis.key_factors.length > 0 ? `
-                                <div class="mt-2">
-                                    <small class="text-success">
-                                        <strong>关键因素:</strong> ${analysis.key_factors.join(', ')}
-                                    </small>
-                                </div>
-                                ` : ''}
-                                ${analysis.risk_factors && analysis.risk_factors.length > 0 ? `
-                                <div class="mt-1">
-                                    <small class="text-warning">
-                                        <strong>风险因素:</strong> ${analysis.risk_factors.join(', ')}
-                                    </small>
-                                </div>
-                                ` : ''}
+                                <h6 class="card-title text-primary">${symbol}</h6>
+                                <p class="mb-1"><strong>情感分数:</strong> ${sentimentScore.toFixed(3)}</p>
+                                <p class="mb-1"><strong>情感标签:</strong> 
+                                    <span class="badge ${sentimentScore > 0 ? 'bg-success' : sentimentScore < 0 ? 'bg-danger' : 'bg-warning'}">
+                                        ${sentimentLabel}
+                                    </span>
+                                </p>
+                                <p class="mb-0"><strong>置信度:</strong> ${(confidence * 100).toFixed(1)}%</p>
                             </div>
                         </div>
                     </div>
@@ -977,54 +1384,6 @@ class FinLoomApp {
             `;
         }
         
-        // 添加辩论结果
-        if (debateResult) {
-            html += `
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h6 class="mb-0">智能体辩论结果</h6>
-                    </div>
-                    <div class="card-body">
-                        <h6 class="text-primary">辩论总结</h6>
-                        <p class="text-muted">${debateResult.final_summary}</p>
-                        
-                        ${debateResult.key_arguments_for && debateResult.key_arguments_for.length > 0 ? `
-                        <h6 class="text-success mt-3">支持论点</h6>
-                        <ul class="list-unstyled">
-                            ${debateResult.key_arguments_for.map(arg => `<li class="text-success"><i class="fas fa-check me-1"></i>${arg}</li>`).join('')}
-                        </ul>
-                        ` : ''}
-                        
-                        ${debateResult.key_arguments_against && debateResult.key_arguments_against.length > 0 ? `
-                        <h6 class="text-danger mt-3">反对论点</h6>
-                        <ul class="list-unstyled">
-                            ${debateResult.key_arguments_against.map(arg => `<li class="text-danger"><i class="fas fa-times me-1"></i>${arg}</li>`).join('')}
-                        </ul>
-                        ` : ''}
-                    </div>
-                </div>
-            `;
-        }
-        
-        // 添加最终洞察
-        html += `
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0">Fin-R1最终洞察</h6>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted">${result.consensus_summary || '暂无总结'}</p>
-                    ${result.finr1_final_insights && Object.keys(result.finr1_final_insights).length > 0 ? `
-                    <div class="mt-3">
-                        <h6 class="text-info">详细洞察</h6>
-                        <pre class="bg-light p-3 rounded small">${JSON.stringify(result.finr1_final_insights, null, 2)}</pre>
-                    </div>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-        
-        // 设置内容
         contentDiv.innerHTML = html;
         
         // 滚动到结果区域

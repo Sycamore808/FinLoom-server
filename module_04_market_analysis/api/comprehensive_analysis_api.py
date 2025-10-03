@@ -10,26 +10,80 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
-from module_01_data_pipeline.data_collectors.akshare_collector import (
-    AkshareDataCollector,
-)
 from pydantic import BaseModel, Field
 
 from common.logging_system import setup_logger
+from module_01_data_pipeline.data_acquisition.akshare_collector import (
+    AkshareDataCollector,
+)
 
-from ..anomaly_detection import (
-    MultiDimensionalAnomalyDetector,
-    PriceAnomalyDetector,
-    VolumeAnomalyDetector,
-)
-from ..correlation_analysis import CorrelationAnalyzer
-from ..regime_detection import MarketRegimeDetector, RegimeDetectionConfig
-from ..sentiment_analysis import (
-    FINR1SentimentAnalyzer,
-    NewsSentimentAnalyzer,
-    SentimentAggregator,
-    SentimentSource,
-)
+logger = setup_logger("comprehensive_analysis_api")
+
+from ..storage_management import get_market_analysis_db
+
+try:
+    from ..anomaly_detection.price_anomaly_detector import (
+        AnomalyDetection,
+        PriceAnomalyDetector,
+    )
+except ImportError as e:
+    logger.warning(f"Failed to import PriceAnomalyDetector: {e}")
+    PriceAnomalyDetector = None
+    AnomalyDetection = None
+
+try:
+    from ..anomaly_detection.volume_anomaly_detector import VolumeAnomalyDetector
+except ImportError as e:
+    logger.warning(f"Failed to import VolumeAnomalyDetector: {e}")
+    VolumeAnomalyDetector = None
+
+try:
+    from ..anomaly_detection.multi_dimensional_anomaly import (
+        MultiDimensionalAnomalyDetector,
+    )
+except ImportError as e:
+    logger.warning(f"Failed to import MultiDimensionalAnomalyDetector: {e}")
+    MultiDimensionalAnomalyDetector = None
+
+try:
+    from ..correlation_analysis.correlation_analyzer import CorrelationAnalyzer
+except ImportError as e:
+    logger.warning(f"Failed to import CorrelationAnalyzer: {e}")
+    CorrelationAnalyzer = None
+
+try:
+    from ..regime_detection.market_regime_detector import MarketRegimeDetector
+except ImportError as e:
+    logger.warning(f"Failed to import MarketRegimeDetector: {e}")
+    MarketRegimeDetector = None
+
+try:
+    from ..regime_detection.hmm_regime_model import RegimeDetectionConfig
+except ImportError as e:
+    logger.warning(f"Failed to import RegimeDetectionConfig: {e}")
+    RegimeDetectionConfig = None
+
+try:
+    from ..sentiment_analysis.fin_r1_sentiment import FINR1SentimentAnalyzer
+except ImportError as e:
+    logger.warning(f"Failed to import FINR1SentimentAnalyzer: {e}")
+    FINR1SentimentAnalyzer = None
+
+try:
+    from ..sentiment_analysis.news_sentiment_analyzer import NewsSentimentAnalyzer
+except ImportError as e:
+    logger.warning(f"Failed to import NewsSentimentAnalyzer: {e}")
+    NewsSentimentAnalyzer = None
+
+try:
+    from ..sentiment_analysis.sentiment_aggregator import (
+        SentimentAggregator,
+        SentimentSource,
+    )
+except ImportError as e:
+    logger.warning(f"Failed to import SentimentAggregator/SentimentSource: {e}")
+    SentimentAggregator = None
+    SentimentSource = None
 from ..storage_management import get_market_analysis_db
 
 logger = setup_logger("comprehensive_analysis_api")
@@ -110,25 +164,76 @@ async def initialize_analyzers():
         logger.info("Initializing analysis engines...")
 
         # 初始化数据收集器
-        data_collector = AkshareDataCollector()
+        try:
+            data_collector = AkshareDataCollector()
+            logger.info("Data collector initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize data collector: {e}")
+            data_collector = None
 
         # 初始化异常检测器
-        price_anomaly_detector = PriceAnomalyDetector()
-        volume_anomaly_detector = VolumeAnomalyDetector()
-        multi_dim_anomaly_detector = MultiDimensionalAnomalyDetector()
+        try:
+            if PriceAnomalyDetector:
+                price_anomaly_detector = PriceAnomalyDetector(data_collector)
+                logger.info("Price anomaly detector initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize price anomaly detector: {e}")
+
+        try:
+            if VolumeAnomalyDetector:
+                volume_anomaly_detector = VolumeAnomalyDetector(data_collector)
+                logger.info("Volume anomaly detector initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize volume anomaly detector: {e}")
+
+        try:
+            if MultiDimensionalAnomalyDetector:
+                multi_dim_anomaly_detector = MultiDimensionalAnomalyDetector()
+                logger.info("Multi-dimensional anomaly detector initialized")
+        except Exception as e:
+            logger.error(
+                f"Failed to initialize multi-dimensional anomaly detector: {e}"
+            )
 
         # 初始化相关性分析器
-        correlation_analyzer = CorrelationAnalyzer()
+        try:
+            if CorrelationAnalyzer:
+                correlation_analyzer = CorrelationAnalyzer()
+                logger.info("Correlation analyzer initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize correlation analyzer: {e}")
 
         # 初始化市场状态检测器
-        regime_detector = MarketRegimeDetector()
+        try:
+            if MarketRegimeDetector:
+                regime_detector = MarketRegimeDetector()
+                logger.info("Market regime detector initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize market regime detector: {e}")
 
         # 初始化情感分析器
-        sentiment_analyzer = FINR1SentimentAnalyzer()
-        news_sentiment_analyzer = NewsSentimentAnalyzer()
-        sentiment_aggregator = SentimentAggregator()
+        try:
+            if FINR1SentimentAnalyzer:
+                sentiment_analyzer = FINR1SentimentAnalyzer()
+                logger.info("FIN-R1 sentiment analyzer initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize FIN-R1 sentiment analyzer: {e}")
 
-        logger.info("All analysis engines initialized successfully")
+        try:
+            if NewsSentimentAnalyzer:
+                news_sentiment_analyzer = NewsSentimentAnalyzer()
+                logger.info("News sentiment analyzer initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize news sentiment analyzer: {e}")
+
+        try:
+            if SentimentAggregator:
+                sentiment_aggregator = SentimentAggregator()
+                logger.info("Sentiment aggregator initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize sentiment aggregator: {e}")
+
+        logger.info("Analysis engine initialization completed")
 
 
 @router.on_event("startup")
