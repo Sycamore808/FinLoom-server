@@ -1,1005 +1,1412 @@
-# Module 06 - 监控告警模块
+# Module 06 - 监控告警模块 API文档
 
 ## 概述
 
-监控告警模块是 FinLoom 量化交易系统的实时监控中枢，负责系统健康监控、性能追踪、异常检测、风险预警和智能通知服务。该模块与所有其他模块集成，确保系统稳定运行和及时响应市场变化。
+监控告警模块是 FinLoom 量化交易系统的实时监控中枢，负责系统健康监控、性能追踪、异常检测、告警管理和通知服务。该模块与所有其他模块集成，确保系统稳定运行和及时响应市场变化。
 
 ## 主要功能
 
-### 1. 实时系统监控 (Real-time System Monitoring)
-- **SystemHealthMonitor**: 系统健康状态监控
-- **PerformanceMonitor**: 性能指标追踪
-- **ResourceMonitor**: 资源使用监控（CPU、内存、磁盘）
-- **APIMonitor**: API响应时间和成功率监控
+### 1. 实时监控 (Real-time Monitoring)
+- **系统监控 (SystemMonitor)**: 监控CPU、内存、磁盘、网络等系统资源
+- **性能监控 (PerformanceMonitor)**: 追踪系统和交易指标
+- **性能追踪 (PerformanceTracker)**: 记录操作性能和耗时
+- **市场监控 (MarketMonitor)**: 实时市场数据和异常监控
+- **投资组合监控 (PortfolioMonitor)**: 持仓和盈亏实时追踪
 
-### 2. 市场监控 (Market Monitoring)
-- **MarketWatchdog**: 实时市场数据监控
-- **PriceAlertManager**: 价格突破预警
-- **VolumeMonitor**: 异常成交量监控
-- **VolatilityTracker**: 波动率追踪和预警
+### 2. 告警系统 (Alert System)
+- **告警管理器 (AlertManager)**: 统一告警管理和规则引擎
+- **告警规则 (AlertRule)**: 自定义告警条件和阈值
+- **告警状态管理**: 触发、确认、解决、升级
 
-### 3. 交易监控 (Trading Monitoring)
-- **OrderMonitor**: 订单状态实时监控
-- **PositionMonitor**: 持仓变化追踪
-- **PnLTracker**: 盈亏实时计算和监控
-- **ExecutionQualityMonitor**: 交易执行质量监控
+### 3. 通知服务 (Notification Service)
+- **通知管理器 (NotificationManager)**: 多渠道通知管理
+- **邮件通知器 (EmailNotifier)**: 通过SMTP发送邮件通知
+- **Webhook通知器 (WebhookNotifier)**: 通过HTTP Webhook发送通知
+- **通知模板**: 预定义的消息模板
 
-### 4. 风险预警 (Risk Alerting)
-- **RiskAlertEngine**: 风险预警引擎
-- **LimitBreachDetector**: 风险限额违规检测
-- **DrawdownAlertManager**: 回撤预警
-- **CorrelationMonitor**: 相关性变化监控
+### 4. 报告引擎 (Reporting Engine)
+- **报告生成器 (ReportGenerator)**: 生成各类报告
+- **报告格式**: HTML、Excel、JSON、Markdown
+- **报告类型**: 日报、周报、月报、自定义报告
 
-### 5. 通知服务 (Notification Service)
-- **NotificationManager**: 统一通知管理
-- **EmailNotifier**: 邮件通知
-- **WebhookNotifier**: Webhook通知
-- **WebSocketBroadcaster**: 实时推送
-
-### 6. 日志管理 (Log Management)
-- **LogAggregator**: 日志聚合
-- **LogAnalyzer**: 日志分析
-- **ErrorTracker**: 错误追踪
-- **AuditLogger**: 审计日志
-
-### 7. 报告生成 (Reporting Engine)
-- **ReportScheduler**: 定时报告生成
-- **DailyReportGenerator**: 日报生成
-- **WeeklyReportGenerator**: 周报生成
-- **CustomReportBuilder**: 自定义报告构建器
+### 5. 数据持久化 (Data Persistence)
+- **数据库管理器 (MonitoringDatabaseManager)**: 监控数据存储到SQLite
+- **历史查询**: 查询历史监控数据和统计
 
 ## 快速开始
 
-### 环境配置
+### 导入模块
 
 ```python
-# 导入 Module 06 组件
+# 导入 Module 06 核心组件
 from module_06_monitoring_alerting import (
-    SystemHealthMonitor,
+    # 实时监控
     PerformanceMonitor,
-    MarketWatchdog,
-    RiskAlertEngine,
+    SystemMetrics,
+    TradingMetrics,
+    MarketMonitor,
+    PortfolioMonitor,
+    MonitoringConfig,
+    # 告警系统
+    AlertManager,
+    AlertConfig,
+    AlertSeverity,
+    AlertCategory,
+    AlertStatus,
+    # 通知服务
     NotificationManager,
-    ReportScheduler,
-    get_monitoring_database_manager
+    NotificationConfig,
+    NotificationChannel,
+    NotificationPriority,
+    NotificationType,
+    # 报告引擎
+    ReportGenerator,
+    ReportType,
+    ReportFormat,
+    ReportConfig,
+    # 数据库管理
+    get_monitoring_database_manager,
 )
 
-# 导入其他模块
+# 导入系统监控器和性能追踪器
+from module_06_monitoring_alerting.real_time_monitoring.system_monitor import get_system_monitor
+from module_06_monitoring_alerting.real_time_monitoring.performance_tracker import get_performance_tracker
+
+# 导入其他模块（用于集成）
 from module_01_data_pipeline import AkshareDataCollector
 from module_05_risk_management import PortfolioRiskAnalyzer
 ```
 
-### 基础使用示例
-
-```python
-import asyncio
-from datetime import datetime, timedelta
-
-# 1. 系统健康监控
-from module_06_monitoring_alerting import SystemHealthMonitor, HealthConfig
-
-# 配置健康监控
-health_config = HealthConfig(
-    check_interval=60,           # 检查间隔（秒）
-    cpu_threshold=80.0,          # CPU阈值
-    memory_threshold=85.0,       # 内存阈值
-    disk_threshold=90.0,         # 磁盘阈值
-    enable_auto_recovery=True    # 启用自动恢复
-)
-
-# 创建健康监控器
-health_monitor = SystemHealthMonitor(health_config)
-
-# 启动监控
-await health_monitor.start_monitoring()
-
-# 获取系统状态
-health_status = health_monitor.get_health_status()
-print(f"系统健康状态: {health_status['overall_status']}")
-print(f"  CPU使用率: {health_status['cpu_usage']:.1f}%")
-print(f"  内存使用率: {health_status['memory_usage']:.1f}%")
-print(f"  磁盘使用率: {health_status['disk_usage']:.1f}%")
-print(f"  运行时长: {health_status['uptime']} 小时")
-
-# 2. 性能监控
-from module_06_monitoring_alerting import PerformanceMonitor, PerformanceConfig
-
-perf_config = PerformanceConfig(
-    track_api_latency=True,
-    track_database_queries=True,
-    track_model_inference=True,
-    slow_query_threshold=1.0     # 慢查询阈值（秒）
-)
-
-perf_monitor = PerformanceMonitor(perf_config)
-
-# 记录性能指标
-with perf_monitor.track_operation("data_collection"):
-    # 执行数据采集
-    collector = AkshareDataCollector()
-    data = collector.fetch_stock_history("000001", "20241101", "20241201")
-
-# 获取性能统计
-perf_stats = perf_monitor.get_statistics()
-print(f"\n性能统计:")
-print(f"  数据采集平均耗时: {perf_stats['data_collection']['avg_time']:.2f}秒")
-print(f"  API调用次数: {perf_stats['api_calls']['total_count']}")
-print(f"  慢查询数量: {perf_stats['slow_queries']['count']}")
-
-# 3. 市场监控和预警
-from module_06_monitoring_alerting import MarketWatchdog, WatchdogConfig
-
-watchdog_config = WatchdogConfig(
-    symbols=['000001', '600036', '000858'],
-    price_change_threshold=0.05,      # 5%涨跌幅预警
-    volume_surge_multiplier=3.0,      # 3倍成交量异常
-    volatility_threshold=0.03,        # 日波动率3%
-    check_interval=30                 # 30秒检查一次
-)
-
-market_watchdog = MarketWatchdog(watchdog_config)
-
-# 启动市场监控
-await market_watchdog.start_watching()
-
-# 设置价格预警
-market_watchdog.set_price_alert(
-    symbol='000001',
-    alert_type='above',
-    threshold_price=16.5,
-    message='平安银行突破16.5元'
-)
-
-market_watchdog.set_price_alert(
-    symbol='000001',
-    alert_type='below',
-    threshold_price=14.5,
-    message='平安银行跌破14.5元'
-)
-
-# 获取监控状态
-watchdog_status = market_watchdog.get_watchdog_status()
-print(f"\n市场监控状态:")
-print(f"  监控股票数: {watchdog_status['symbols_count']}")
-print(f"  活跃预警数: {watchdog_status['active_alerts']}")
-print(f"  最近触发: {watchdog_status['recent_triggers']}")
-
-# 4. 风险预警
-from module_06_monitoring_alerting import RiskAlertEngine, RiskAlertConfig
-
-risk_alert_config = RiskAlertConfig(
-    var_threshold=0.05,              # VaR超过5%预警
-    drawdown_threshold=0.10,         # 回撤超过10%预警
-    concentration_threshold=0.35,     # 单股仓位超过35%预警
-    leverage_threshold=1.5,          # 杠杆超过1.5倍预警
-    alert_cooldown=300               # 预警冷却期5分钟
-)
-
-risk_alert = RiskAlertEngine(risk_alert_config)
-
-# 监控投资组合风险
-portfolio = {
-    '000001': {'weight': 0.3, 'shares': 1000, 'cost': 15.5},
-    '600036': {'weight': 0.4, 'shares': 800, 'cost': 45.2},
-    '000858': {'weight': 0.3, 'shares': 500, 'cost': 180.0}
-}
-
-# 检查风险
-risk_alerts = await risk_alert.check_portfolio_risk(portfolio)
-
-if risk_alerts:
-    print(f"\n⚠️ 风险预警:")
-    for alert in risk_alerts:
-        print(f"  [{alert['severity']}] {alert['message']}")
-        print(f"    触发时间: {alert['timestamp']}")
-        print(f"    当前值: {alert['current_value']:.2%}")
-        print(f"    阈值: {alert['threshold']:.2%}")
-
-# 5. 通知管理
-from module_06_monitoring_alerting import NotificationManager, NotificationConfig
-
-notification_config = NotificationConfig(
-    enable_email=True,
-    enable_webhook=True,
-    enable_websocket=True,
-    email_recipients=['trader@example.com'],
-    webhook_url='https://your-webhook.com/alerts',
-    alert_priority_threshold='medium'  # 只发送中级以上告警
-)
-
-notifier = NotificationManager(notification_config)
-
-# 发送通知
-await notifier.send_notification(
-    title='风险限额违规',
-    message='000001持仓比例超过35%限制',
-    severity='high',
-    data={
-        'symbol': '000001',
-        'current_weight': 0.38,
-        'limit': 0.35,
-        'action_required': '减仓'
-    }
-)
-
-# 批量通知
-notifications = [
-    {'title': '价格突破', 'message': '600036突破50元', 'severity': 'medium'},
-    {'title': '成交量异常', 'message': '000858成交量放大3倍', 'severity': 'low'},
-]
-
-await notifier.send_batch_notifications(notifications)
-
-# 6. 日志聚合和分析
-from module_06_monitoring_alerting import LogAggregator, LogAnalyzer
-
-log_aggregator = LogAggregator()
-log_analyzer = LogAnalyzer()
-
-# 聚合最近1小时的日志
-recent_logs = log_aggregator.aggregate_logs(
-    start_time=datetime.now() - timedelta(hours=1),
-    end_time=datetime.now(),
-    modules=['module_01', 'module_03', 'module_05']
-)
-
-# 分析日志
-log_analysis = log_analyzer.analyze_logs(recent_logs)
-
-print(f"\n日志分析结果:")
-print(f"  总日志数: {log_analysis['total_logs']}")
-print(f"  错误数: {log_analysis['error_count']}")
-print(f"  警告数: {log_analysis['warning_count']}")
-print(f"  最频繁错误: {log_analysis['top_errors']}")
-print(f"  异常模块: {log_analysis['problematic_modules']}")
-
-# 7. 定时报告生成
-from module_06_monitoring_alerting import ReportScheduler, ReportConfig
-
-report_config = ReportConfig(
-    daily_report_time='18:00',       # 每日18:00生成日报
-    weekly_report_day='Friday',      # 每周五生成周报
-    monthly_report_day=1,            # 每月1日生成月报
-    report_recipients=['manager@example.com'],
-    include_performance=True,
-    include_risk_metrics=True,
-    include_system_health=True
-)
-
-report_scheduler = ReportScheduler(report_config)
-
-# 启动报告调度
-await report_scheduler.start_scheduler()
-
-# 手动生成日报
-daily_report = await report_scheduler.generate_daily_report(
-    date=datetime.now().date()
-)
-
-print(f"\n日报生成:")
-print(f"  报告日期: {daily_report['date']}")
-print(f"  总收益率: {daily_report['total_return']:.2%}")
-print(f"  今日PnL: {daily_report['daily_pnl']:.2f}元")
-print(f"  系统健康: {daily_report['system_health']}")
-print(f"  告警数量: {daily_report['alert_count']}")
-
-# 8. 保存监控数据
-monitoring_db = get_monitoring_database_manager()
-
-# 保存系统健康记录
-monitoring_db.save_health_status(
-    timestamp=datetime.now(),
-    cpu_usage=health_status['cpu_usage'],
-    memory_usage=health_status['memory_usage'],
-    disk_usage=health_status['disk_usage']
-)
-
-# 保存性能指标
-monitoring_db.save_performance_metrics(
-    timestamp=datetime.now(),
-    operation='data_collection',
-    duration=perf_stats['data_collection']['avg_time'],
-    success=True
-)
-
-# 保存告警记录
-for alert in risk_alerts:
-    monitoring_db.save_alert(
-        alert_type='risk',
-        severity=alert['severity'],
-        message=alert['message'],
-        timestamp=alert['timestamp'],
-        data=alert
-    )
-
-print("\n✅ 监控告警系统运行中！")
-```
+---
 
 ## API 参考
 
-### SystemHealthMonitor
+### 1. 系统监控 (System Monitor)
 
-系统健康状态监控。
+#### 基本用法
 
-#### 构造函数
 ```python
-SystemHealthMonitor(config: HealthConfig)
+from module_06_monitoring_alerting.real_time_monitoring.system_monitor import get_system_monitor
+
+# 获取系统监控器实例（单例模式）
+system_monitor = get_system_monitor(monitoring_interval=60)
+
+# 获取系统状态
+status = system_monitor.get_system_status()
+
+print(f"CPU使用率: {status.cpu_percent:.1f}%")
+print(f"内存使用率: {status.memory_percent:.1f}%")
+print(f"磁盘使用率: {status.disk_percent:.1f}%")
+print(f"CPU核心数: {status.cpu_count}")
+print(f"运行时长: {status.uptime_hours:.2f}小时")
+
+# 获取健康状态
+health = system_monitor.get_health_status()
+print(f"整体状态: {health['overall_status']}")  # 'healthy', 'warning', 'critical'
+
+for component, info in health['components'].items():
+    print(f"{component}: {info['status']} - {info['message']}")
 ```
 
-#### 配置参数 (HealthConfig)
+#### 异步监控
+
 ```python
-@dataclass
-class HealthConfig:
-    check_interval: int = 60             # 检查间隔（秒）
-    cpu_threshold: float = 80.0          # CPU阈值
-    memory_threshold: float = 85.0       # 内存阈值
-    disk_threshold: float = 90.0         # 磁盘阈值
-    enable_auto_recovery: bool = True    # 启用自动恢复
-    health_check_timeout: int = 30       # 健康检查超时
+import asyncio
+
+async def monitor_system():
+    # 启动系统监控
+    await system_monitor.start_monitoring()
+
+# 在事件循环中运行
+# asyncio.run(monitor_system())
+
+# 停止监控
+system_monitor.stop_monitoring()
 ```
 
-#### 主要方法
+#### 获取统计信息
 
-**start_monitoring() -> None**
-- 启动系统健康监控
-- 异步持续监控
-
-**stop_monitoring() -> None**
-- 停止监控
-
-**get_health_status() -> Dict[str, Any]**
-- 获取当前健康状态
-- 返回CPU、内存、磁盘使用情况
-
-**check_module_health(module_name: str) -> bool**
-- 检查特定模块健康状态
-- 返回True/False
-
-**get_uptime() -> timedelta**
-- 获取系统运行时长
-
-#### 使用示例
 ```python
-monitor = SystemHealthMonitor(config)
-await monitor.start_monitoring()
+# 获取最近60分钟的统计
+stats = system_monitor.get_statistics(minutes=60)
 
-status = monitor.get_health_status()
-if status['overall_status'] == 'critical':
-    print("系统状态严重！")
+print(f"CPU统计:")
+print(f"  平均: {stats['cpu']['avg']:.1f}%")
+print(f"  最大: {stats['cpu']['max']:.1f}%")
+print(f"  最小: {stats['cpu']['min']:.1f}%")
 ```
 
-### PerformanceMonitor
+#### 注册回调
 
-性能指标追踪。
-
-#### 构造函数
 ```python
-PerformanceMonitor(config: PerformanceConfig)
+def on_status_change(status):
+    """状态变化回调"""
+    if status.cpu_percent > 80:
+        print(f"警告: CPU使用率过高 {status.cpu_percent:.1f}%")
+
+system_monitor.register_callback(on_status_change)
 ```
 
-#### 配置参数 (PerformanceConfig)
+---
+
+### 2. 性能监控 (Performance Monitor)
+
+#### 基本用法
+
 ```python
-@dataclass
-class PerformanceConfig:
-    track_api_latency: bool = True
-    track_database_queries: bool = True
-    track_model_inference: bool = True
-    slow_query_threshold: float = 1.0     # 秒
-    enable_profiling: bool = False
-```
+from module_06_monitoring_alerting import PerformanceMonitor
+from module_06_monitoring_alerting.real_time_monitoring.performance_monitor import AlertRule
 
-#### 主要方法
+# 创建性能监控器
+perf_monitor = PerformanceMonitor(monitoring_interval=5)
 
-**track_operation(operation_name: str) -> ContextManager**
-- 追踪操作性能
-- 使用with语句
-
-**record_metric(metric_name: str, value: float, tags: Dict = None) -> None**
-- 记录性能指标
-
-**get_statistics(metric_name: str = None) -> Dict[str, Any]**
-- 获取性能统计
-- 可选择特定指标
-
-**get_slow_queries() -> List[Dict[str, Any]]**
-- 获取慢查询列表
-
-**reset_statistics() -> None**
-- 重置统计数据
-
-#### 使用示例
-```python
-perf_monitor = PerformanceMonitor(config)
-
-with perf_monitor.track_operation("model_prediction"):
-    prediction = model.predict(features)
-
-stats = perf_monitor.get_statistics("model_prediction")
-```
-
-### MarketWatchdog
-
-实时市场数据监控和预警。
-
-#### 构造函数
-```python
-MarketWatchdog(config: WatchdogConfig)
-```
-
-#### 配置参数 (WatchdogConfig)
-```python
-@dataclass
-class WatchdogConfig:
-    symbols: List[str] = None
-    price_change_threshold: float = 0.05      # 涨跌幅阈值
-    volume_surge_multiplier: float = 3.0      # 成交量异常倍数
-    volatility_threshold: float = 0.03        # 波动率阈值
-    check_interval: int = 30                  # 检查间隔（秒）
-    enable_circuit_breaker: bool = True       # 启用熔断检测
-```
-
-#### 主要方法
-
-**start_watching() -> None**
-- 启动市场监控
-- 异步持续监控
-
-**stop_watching() -> None**
-- 停止监控
-
-**set_price_alert(symbol: str, alert_type: str, threshold_price: float, message: str = None) -> str**
-- 设置价格预警
-- alert_type: 'above', 'below', 'cross'
-- 返回alert_id
-
-**remove_price_alert(alert_id: str) -> bool**
-- 移除价格预警
-
-**get_watchdog_status() -> Dict[str, Any]**
-- 获取监控状态
-
-**get_triggered_alerts(since: datetime = None) -> List[Dict[str, Any]]**
-- 获取触发的预警
-
-#### 使用示例
-```python
-watchdog = MarketWatchdog(config)
-await watchdog.start_watching()
-
-# 设置预警
-alert_id = watchdog.set_price_alert('000001', 'above', 16.5)
-
-# 获取触发的预警
-alerts = watchdog.get_triggered_alerts(since=datetime.now() - timedelta(hours=1))
-```
-
-### RiskAlertEngine
-
-风险预警引擎。
-
-#### 构造函数
-```python
-RiskAlertEngine(config: RiskAlertConfig)
-```
-
-#### 配置参数 (RiskAlertConfig)
-```python
-@dataclass
-class RiskAlertConfig:
-    var_threshold: float = 0.05              # VaR阈值
-    drawdown_threshold: float = 0.10         # 回撤阈值
-    concentration_threshold: float = 0.35    # 集中度阈值
-    leverage_threshold: float = 1.5          # 杠杆阈值
-    alert_cooldown: int = 300                # 预警冷却期（秒）
-    severity_levels: Dict[str, float] = None  # 严重性级别
-```
-
-#### 主要方法
-
-**check_portfolio_risk(portfolio: Dict) -> List[Dict[str, Any]]**
-- 检查投资组合风险
-- 返回预警列表
-
-**check_var_breach(portfolio: Dict, current_var: float) -> Optional[Dict]**
-- 检查VaR违规
-
-**check_drawdown_breach(portfolio: Dict, current_drawdown: float) -> Optional[Dict]**
-- 检查回撤违规
-
-**check_concentration_risk(portfolio: Dict) -> List[Dict]**
-- 检查集中度风险
-
-**get_alert_history(start_date: datetime = None) -> List[Dict]**
-- 获取预警历史
-
-#### 使用示例
-```python
-risk_alert = RiskAlertEngine(config)
-
-alerts = await risk_alert.check_portfolio_risk(portfolio)
-
-for alert in alerts:
-    if alert['severity'] == 'high':
-        print(f"高风险预警: {alert['message']}")
-```
-
-### NotificationManager
-
-统一通知管理。
-
-#### 构造函数
-```python
-NotificationManager(config: NotificationConfig)
-```
-
-#### 配置参数 (NotificationConfig)
-```python
-@dataclass
-class NotificationConfig:
-    enable_email: bool = True
-    enable_webhook: bool = True
-    enable_websocket: bool = True
-    email_recipients: List[str] = None
-    email_server: str = 'smtp.gmail.com'
-    email_port: int = 587
-    webhook_url: str = None
-    alert_priority_threshold: str = 'low'  # 'low', 'medium', 'high'
-```
-
-#### 主要方法
-
-**send_notification(title: str, message: str, severity: str = 'info', data: Dict = None) -> bool**
-- 发送单个通知
-- severity: 'info', 'low', 'medium', 'high', 'critical'
-
-**send_batch_notifications(notifications: List[Dict]) -> Dict[str, int]**
-- 批量发送通知
-- 返回成功/失败统计
-
-**send_email(to: List[str], subject: str, body: str, html: bool = False) -> bool**
-- 发送邮件通知
-
-**send_webhook(url: str, data: Dict) -> bool**
-- 发送Webhook通知
-
-**broadcast_websocket(channel: str, message: Dict) -> int**
-- WebSocket广播
-- 返回接收者数量
-
-**get_notification_history(limit: int = 100) -> List[Dict]**
-- 获取通知历史
-
-#### 使用示例
-```python
-notifier = NotificationManager(config)
-
-# 发送通知
-await notifier.send_notification(
-    title='交易执行成功',
-    message='000001买入1000股',
-    severity='info',
-    data={'symbol': '000001', 'quantity': 1000}
+# 添加告警规则
+rule = AlertRule(
+    name="cpu_high",
+    metric_type="system",  # 'system' 或 'trading'
+    metric_name="cpu_percent",
+    operator=">",  # '>', '<', '>=', '<=', '==', '!='
+    threshold=80.0,
+    duration_seconds=60,
+    enabled=True,
 )
+perf_monitor.add_alert_rule(rule)
 
-# 发送邮件
-notifier.send_email(
-    to=['trader@example.com'],
-    subject='日报',
-    body='今日交易汇总...'
+# 启动监控
+perf_monitor.start_monitoring()
+
+# 获取最新指标
+system_metrics = perf_monitor.get_latest_system_metrics()
+if system_metrics:
+    print(f"时间戳: {system_metrics.timestamp}")
+    print(f"CPU使用率: {system_metrics.cpu_percent:.1f}%")
+    print(f"内存使用率: {system_metrics.memory_percent:.1f}%")
+    print(f"Python内存: {system_metrics.python_memory_mb:.1f}MB")
+
+trading_metrics = perf_monitor.get_latest_trading_metrics()
+if trading_metrics:
+    print(f"总信号数: {trading_metrics.total_signals}")
+    print(f"活跃订单: {trading_metrics.active_orders}")
+
+# 停止监控
+perf_monitor.stop_monitoring()
+```
+
+#### 获取性能摘要
+
+```python
+# 获取最近60分钟的摘要
+summary = perf_monitor.get_metrics_summary(minutes=60)
+
+print(f"时间范围: {summary['time_range_minutes']}分钟")
+print(f"系统指标数: {summary['system_metrics_count']}")
+print(f"活跃告警数: {summary['active_alerts']}")
+print(f"平均CPU: {summary.get('avg_cpu_percent', 0):.1f}%")
+print(f"平均内存: {summary.get('avg_memory_percent', 0):.1f}%")
+```
+
+#### 添加回调
+
+```python
+def metrics_callback(system_metrics, trading_metrics):
+    """指标变化回调"""
+    print(f"系统指标更新: CPU {system_metrics.cpu_percent:.1f}%")
+
+def alert_callback(alert):
+    """告警回调"""
+    print(f"告警触发: {alert.message}")
+
+perf_monitor.add_metrics_callback(metrics_callback)
+perf_monitor.add_alert_callback(alert_callback)
+```
+
+#### 导出指标
+
+```python
+# 导出到JSON文件
+perf_monitor.export_metrics("metrics_export.json")
+```
+
+---
+
+### 3. 性能追踪 (Performance Tracker)
+
+#### 基本用法
+
+```python
+from module_06_monitoring_alerting.real_time_monitoring.performance_tracker import get_performance_tracker
+
+# 获取性能追踪器实例（单例模式）
+tracker = get_performance_tracker()
+
+# 使用上下文管理器追踪操作
+with tracker.track("data_collection", metadata={"source": "akshare"}):
+    collector = AkshareDataCollector()
+    data = collector.fetch_stock_history("000001", "20241101", "20241201")
+
+# 手动记录操作
+tracker.record_operation(
+    operation="manual_task",
+    duration=0.123,
+    success=True,
+    metadata={"note": "测试"}
 )
 ```
 
-### ReportScheduler
+#### 获取统计
 
-定时报告生成调度。
-
-#### 构造函数
 ```python
-ReportScheduler(config: ReportConfig)
+# 获取所有操作的统计
+stats = tracker.get_stats()
+
+for op_name, op_stats in stats.items():
+    print(f"{op_name}:")
+    print(f"  执行次数: {op_stats.count}")
+    print(f"  平均耗时: {op_stats.avg_duration:.3f}秒")
+    print(f"  最大耗时: {op_stats.max_duration:.3f}秒")
+    print(f"  成功率: {op_stats.success_rate:.1%}")
+
+# 获取特定操作的统计
+data_collection_stats = tracker.get_stats("data_collection")
 ```
 
-#### 配置参数 (ReportConfig)
+#### 获取记录
+
 ```python
-@dataclass
-class ReportConfig:
-    daily_report_time: str = '18:00'
-    weekly_report_day: str = 'Friday'
-    monthly_report_day: int = 1
-    report_recipients: List[str] = None
-    report_format: str = 'html'              # 'html', 'pdf', 'json'
-    include_performance: bool = True
-    include_risk_metrics: bool = True
-    include_system_health: bool = True
+from datetime import datetime, timedelta
+
+# 获取最近的记录
+recent_records = tracker.get_records(limit=10)
+
+# 获取特定操作的记录
+op_records = tracker.get_records(
+    operation="data_collection",
+    start_time=datetime.now() - timedelta(hours=1),
+    success_only=True,
+    limit=50
+)
+
+for record in op_records:
+    print(f"{record.operation}: {record.duration:.3f}秒 - {'成功' if record.success else '失败'}")
 ```
 
-#### 主要方法
+#### 查找慢操作和失败操作
 
-**start_scheduler() -> None**
-- 启动报告调度
-
-**stop_scheduler() -> None**
-- 停止调度
-
-**generate_daily_report(date: date = None) -> Dict[str, Any]**
-- 生成日报
-- 默认生成当日报告
-
-**generate_weekly_report(week_end_date: date = None) -> Dict[str, Any]**
-- 生成周报
-
-**generate_monthly_report(month: int = None, year: int = None) -> Dict[str, Any]**
-- 生成月报
-
-**generate_custom_report(start_date: date, end_date: date, metrics: List[str]) -> Dict[str, Any]**
-- 生成自定义报告
-
-**get_scheduled_reports() -> List[Dict]**
-- 获取已调度的报告任务
-
-#### 使用示例
 ```python
-scheduler = ReportScheduler(config)
-await scheduler.start_scheduler()
+# 获取慢操作（耗时超过1秒）
+slow_operations = tracker.get_slow_operations(threshold=1.0, limit=10)
 
-# 生成日报
-daily_report = await scheduler.generate_daily_report()
+for op in slow_operations:
+    print(f"慢操作: {op.operation} - {op.duration:.3f}秒")
 
-# 生成自定义报告
-custom_report = await scheduler.generate_custom_report(
-    start_date=date(2024, 11, 1),
-    end_date=date(2024, 11, 30),
-    metrics=['pnl', 'sharpe', 'drawdown']
+# 获取失败操作
+failed_operations = tracker.get_failed_operations(limit=10)
+
+for op in failed_operations:
+    print(f"失败操作: {op.operation} - {op.error_message}")
+```
+
+#### 获取摘要
+
+```python
+# 获取最近60分钟的摘要
+summary = tracker.get_summary(minutes=60)
+
+print(f"总操作数: {summary['total_operations']}")
+print(f"成功率: {summary['success_rate']:.1%}")
+print(f"平均耗时: {summary['avg_duration']:.3f}秒")
+
+for op_name, op_info in summary['operations'].items():
+    print(f"{op_name}:")
+    print(f"  执行次数: {op_info['count']}")
+    print(f"  成功率: {op_info['success_rate']:.1%}")
+```
+
+---
+
+### 4. 市场监控 (Market Monitor)
+
+#### 基本用法
+
+```python
+from module_06_monitoring_alerting import MarketMonitor
+
+# 创建市场监控器
+market_monitor = MarketMonitor(
+    symbols=['000001', '600036', '000858'],
+    benchmark_symbol='000001',
+    lookback_period=252
+)
+
+# 获取市场状态
+regime = market_monitor.calculate_market_regime()
+print(f"市场状态: {regime.value}")  # bull, bear, sideways, volatile, crash, rally
+
+condition = market_monitor.calculate_market_condition()
+print(f"市场条件: {condition.value}")  # normal, overbought, oversold, etc.
+```
+
+#### 检测异常
+
+```python
+# 检测市场异常
+anomalies = market_monitor.detect_anomalies()
+
+for anomaly in anomalies:
+    print(f"异常类型: {anomaly.type}")
+    print(f"严重程度: {anomaly.severity:.2f}")
+    print(f"描述: {anomaly.description}")
+    print(f"影响股票: {anomaly.affected_symbols}")
+    print(f"建议操作: {anomaly.recommended_action}")
+```
+
+#### 计算相关性和广度
+
+```python
+# 计算相关性矩阵
+corr_matrix = market_monitor.calculate_correlation_matrix()
+
+# 计算市场广度
+breadth = market_monitor.calculate_market_breadth()
+print(f"市场广度: {breadth:.2%}")  # 上涨股票比例
+
+# 计算板块表现
+sector_perf = market_monitor.calculate_sector_performance()
+for sector, performance in sector_perf.items():
+    print(f"{sector}: {performance:.2%}")
+```
+
+#### 获取市场摘要
+
+```python
+# 获取市场摘要
+summary = market_monitor.get_market_summary()
+
+print(f"市场状态: {summary['regime']}")
+print(f"市场条件: {summary['condition']}")
+print(f"波动率: {summary['volatility']:.2%}")
+print(f"流动性评分: {summary['liquidity_score']:.2f}")
+print(f"风险级别: {summary['risk_level']}")
+```
+
+---
+
+### 5. 投资组合监控 (Portfolio Monitor)
+
+#### 基本用法
+
+```python
+from module_06_monitoring_alerting import PortfolioMonitor, MonitoringConfig
+from common.data_structures import Position
+
+# 配置监控
+config = MonitoringConfig(
+    frequency=MonitoringConfig.MonitoringFrequency.MINUTE,
+    metrics_window=252,
+    enable_alerts=True,
+    save_snapshots=True,
+    snapshot_interval=300,  # 5分钟
+)
+
+# 创建监控器
+portfolio_monitor = PortfolioMonitor(config)
+
+# 模拟持仓数据
+positions = [
+    Position(
+    symbol='000001',
+        quantity=10000,
+        avg_cost=15.5,
+        current_price=16.0,
+        # ... 其他字段
+    ),
+]
+
+cash_balance = 100000
+market_prices = {'000001': 16.0}
+
+# 更新投资组合指标
+metrics = portfolio_monitor.update_portfolio_metrics(
+    positions=positions,
+    cash_balance=cash_balance,
+    market_prices=market_prices
+)
+
+print(f"组合总价值: {metrics.total_value:,.2f}")
+print(f"今日盈亏: {metrics.daily_pnl:,.2f}")
+print(f"今日收益率: {metrics.daily_return:.2%}")
+print(f"夏普比率: {metrics.sharpe_ratio:.2f}")
+print(f"最大回撤: {metrics.max_drawdown:.2%}")
+print(f"VaR(95%): {metrics.var_95:.2%}")
+```
+
+#### 检测异常
+
+```python
+# 检测投资组合异常
+anomalies = portfolio_monitor.detect_anomalies()
+
+for anomaly in anomalies:
+    print(f"异常类型: {anomaly['type']}")
+    print(f"严重程度: {anomaly['severity']}")
+    print(f"消息: {anomaly['message']}")
+```
+
+#### 获取监控摘要
+
+```python
+# 获取监控摘要
+summary = portfolio_monitor.get_monitoring_summary()
+
+print(f"状态: {summary['status']}")
+print(f"组合价值: {summary['portfolio_value']:,.2f}")
+print(f"今日盈亏: {summary['daily_pnl']:,.2f}")
+print(f"持仓数量: {summary['n_positions']}")
+print(f"前5大持仓: {summary['top_positions']}")
+```
+
+#### 注册回调
+
+```python
+def on_update(metrics):
+    """指标更新回调"""
+    print(f"组合价值更新: {metrics.total_value:,.2f}")
+
+def on_alert(alert):
+    """告警回调"""
+    print(f"投资组合告警: {alert}")
+
+def on_snapshot(snapshot):
+    """快照回调"""
+    print(f"创建快照: {snapshot.timestamp}")
+
+portfolio_monitor.register_callback("on_update", on_update)
+portfolio_monitor.register_callback("on_alert", on_alert)
+portfolio_monitor.register_callback("on_snapshot", on_snapshot)
+```
+
+---
+
+### 6. 告警管理 (Alert Manager)
+
+#### 基本用法
+
+```python
+from module_06_monitoring_alerting import (
+    AlertManager,
+    AlertConfig,
+    AlertSeverity,
+    AlertCategory,
+)
+from module_06_monitoring_alerting.alert_system import AlertRule
+
+# 配置告警管理器
+alert_config = AlertConfig(
+    max_alerts_per_rule=10,
+    alert_retention_days=30,
+    enable_auto_escalation=True,
+    enable_alert_suppression=True,
+    suppression_window=300,  # 抑制窗口（秒）
+)
+
+# 创建告警管理器
+alert_manager = AlertManager(alert_config)
+
+# 添加告警规则
+rule = AlertRule(
+    rule_id="cpu_high_rule",
+    name="CPU使用率过高",
+    description="CPU使用率超过阈值",
+    category=AlertCategory.SYSTEM,
+    severity=AlertSeverity.WARNING,
+    condition="cpu_percent > 80",
+    threshold=80.0,
+    comparison=">",
+    metric="cpu_percent",
+    cooldown_seconds=300,
+)
+alert_manager.add_rule(rule)
+```
+
+#### 检查规则和触发告警
+
+```python
+# 准备指标数据
+metrics = {
+    "cpu_percent": 85.0,
+    "memory_percent": 70.0,
+    "disk_usage": 45.0,
+}
+
+# 检查规则
+triggered_alerts = alert_manager.check_rules(metrics)
+
+for alert in triggered_alerts:
+    print(f"告警ID: {alert.alert_id}")
+    print(f"规则: {alert.rule_id}")
+    print(f"严重级别: {alert.severity.name}")
+    print(f"类别: {alert.category.name}")
+    print(f"消息: {alert.message}")
+    print(f"指标值: {alert.metric_value}")
+    print(f"阈值: {alert.threshold_value}")
+```
+
+#### 手动触发告警
+
+```python
+# 手动触发告警
+alert = alert_manager.trigger_alert(
+    rule_id="cpu_high_rule",
+    metric_value=90.0,
+    message="CPU使用率达到90%"
 )
 ```
 
-### LogAggregator & LogAnalyzer
+#### 告警确认和解决
 
-日志聚合和分析。
-
-#### LogAggregator
 ```python
-class LogAggregator:
-    def aggregate_logs(self, start_time: datetime, end_time: datetime, modules: List[str] = None) -> List[Dict]
-    def filter_logs(self, logs: List[Dict], level: str = None, keyword: str = None) -> List[Dict]
-    def export_logs(self, logs: List[Dict], format: str = 'json', filepath: str = None) -> str
+# 确认告警
+success = alert_manager.acknowledge_alert(
+    alert_id=alert.alert_id,
+    acknowledged_by="admin"
+)
+
+# 解决告警
+success = alert_manager.resolve_alert(
+    alert_id=alert.alert_id,
+    resolution_notes="已优化程序，CPU使用率降低"
+)
 ```
 
-#### LogAnalyzer
+#### 获取告警
+
 ```python
-class LogAnalyzer:
-    def analyze_logs(self, logs: List[Dict]) -> Dict[str, Any]
-    def detect_patterns(self, logs: List[Dict]) -> List[Dict]
-    def find_anomalies(self, logs: List[Dict]) -> List[Dict]
-    def generate_log_report(self, logs: List[Dict]) -> str
+# 获取所有活跃告警
+active_alerts = alert_manager.get_active_alerts()
+
+# 按严重级别筛选
+critical_alerts = alert_manager.get_active_alerts(severity=AlertSeverity.CRITICAL)
+
+# 按类别筛选
+system_alerts = alert_manager.get_active_alerts(category=AlertCategory.SYSTEM)
 ```
 
-#### 使用示例
-```python
-aggregator = LogAggregator()
-analyzer = LogAnalyzer()
+#### 告警统计
 
-# 聚合日志
-logs = aggregator.aggregate_logs(
+```python
+# 获取统计信息
+stats = alert_manager.get_alert_statistics()
+
+print(f"总告警数: {stats.total_alerts}")
+print(f"严重级别分布: {stats.alerts_by_severity}")
+print(f"类别分布: {stats.alerts_by_category}")
+print(f"状态分布: {stats.alerts_by_status}")
+print(f"平均解决时间: {stats.average_resolution_time:.2f}秒")
+print(f"升级率: {stats.escalation_rate:.2%}")
+```
+
+---
+
+### 7. 通知服务 (Notification Service)
+
+#### 基本用法
+
+```python
+from module_06_monitoring_alerting import (
+    NotificationManager,
+    NotificationConfig,
+    NotificationChannel,
+    NotificationPriority,
+    NotificationType,
+)
+
+# 配置通知管理器
+notification_config = NotificationConfig(
+    enabled_channels=[NotificationChannel.EMAIL],
+    rate_limits={NotificationChannel.EMAIL: 100},  # 每分钟最多100封
+    retry_attempts=3,
+    retry_delay=60,
+    enable_aggregation=True,
+    aggregation_window=300,
+)
+
+# 创建通知管理器
+notifier = NotificationManager(notification_config)
+```
+
+#### 发送通知
+
+```python
+from datetime import datetime
+
+# 发送单个通知
+notification_id = notifier.send_notification(
+    type=NotificationType.ALERT,
+    priority=NotificationPriority.HIGH,
+    channel=NotificationChannel.EMAIL,
+    recipient="admin@example.com",
+    subject="系统告警",
+    message="CPU使用率超过85%",
+    data={"cpu_percent": 87.5, "timestamp": datetime.now()}
+)
+
+print(f"通知ID: {notification_id}")
+```
+
+#### 使用模板发送通知
+
+```python
+# 使用预定义模板
+notification_id = notifier.send_templated_notification(
+    template_id="alert_critical",
+    priority=NotificationPriority.URGENT,
+    channel=NotificationChannel.EMAIL,
+    recipient="admin@example.com",
+    variables={
+        "alert_title": "CPU告警",
+        "alert_message": "CPU使用率达到90%",
+        "affected_items": "服务器node-01",
+        "recommended_action": "检查运行进程",
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+)
+```
+
+#### 广播通知
+
+```python
+# 发送到多个渠道和接收者
+notification_ids = notifier.broadcast_notification(
+    type=NotificationType.SYSTEM,
+    priority=NotificationPriority.NORMAL,
+    channels=[NotificationChannel.EMAIL],
+    recipients=["admin@example.com", "ops@example.com"],
+    subject="系统维护通知",
+    message="系统将于今晚22:00进行维护",
+)
+
+print(f"发送了 {len(notification_ids)} 条通知")
+```
+
+#### 获取通知状态
+
+```python
+# 查询通知状态
+status = notifier.get_notification_status(notification_id)
+
+if status:
+    print(f"状态: {status['status']}")
+    if status['status'] == 'delivered':
+        print(f"送达时间: {status['sent_at']}")
+    elif status['status'] == 'failed':
+        print(f"错误: {status['error']}")
+```
+
+#### 通知统计
+
+```python
+from datetime import datetime, timedelta
+
+# 获取最近24小时的统计
+stats = notifier.get_statistics(
     start_time=datetime.now() - timedelta(days=1),
     end_time=datetime.now()
 )
 
-# 分析日志
-analysis = analyzer.analyze_logs(logs)
-anomalies = analyzer.find_anomalies(logs)
+print(f"总发送数: {stats.total_sent}")
+print(f"总送达数: {stats.total_delivered}")
+print(f"总失败数: {stats.total_failed}")
+print(f"成功率: {stats.success_rate:.2%}")
+print(f"平均送达时间: {stats.average_delivery_time:.2f}秒")
+print(f"按渠道: {stats.by_channel}")
+print(f"按类型: {stats.by_type}")
 ```
 
-## 数据库管理
+---
 
-### MonitoringDatabaseManager
+### 8. 报告生成 (Report Generator)
 
-监控数据专用数据库管理。
+#### 基本用法
 
-#### 使用方法
+```python
+from module_06_monitoring_alerting import (
+    ReportGenerator,
+    ReportType,
+    ReportFormat,
+    ReportConfig,
+)
+
+# 创建报告生成器
+report_generator = ReportGenerator(
+    template_dir="templates",
+    output_dir="reports"
+)
+
+# 准备报告数据
+report_data = {
+    "portfolio_value": 1000000,
+    "cash_balance": 100000,
+    "positions_value": 900000,
+    "start_value": 950000,
+    "daily_return": 0.015,
+    "sharpe_ratio": 1.5,
+    "max_drawdown": -0.08,
+    "volatility": 0.15,
+    "win_rate": 0.65,
+    "positions": [
+        {
+            "symbol": "000001",
+            "quantity": 10000,
+            "avg_cost": 15.5,
+            "current_price": 16.0,
+            "market_value": 160000,
+            "unrealized_pnl": 5000,
+            "return_pct": 0.032,
+            "weight": 0.18,
+        },
+    ],
+    "transactions": [],
+}
+```
+
+#### 生成不同格式的报告
+
+```python
+# 生成JSON报告
+json_config = ReportConfig(
+    report_type=ReportType.DAILY,
+    format=ReportFormat.JSON,
+    include_charts=False,
+)
+json_report = report_generator.generate_report(json_config, report_data)
+print(f"JSON报告: {json_report}")
+
+# 生成HTML报告
+html_config = ReportConfig(
+    report_type=ReportType.DAILY,
+    format=ReportFormat.HTML,
+    include_charts=True,
+    include_metrics=True,
+    include_positions=True,
+)
+html_report = report_generator.generate_report(html_config, report_data)
+print(f"HTML报告: {html_report}")
+
+# 生成Excel报告
+excel_config = ReportConfig(
+    report_type=ReportType.WEEKLY,
+    format=ReportFormat.EXCEL,
+    include_positions=True,
+    include_transactions=True,
+)
+excel_report = report_generator.generate_report(excel_config, report_data)
+print(f"Excel报告: {excel_report}")
+
+# 生成Markdown报告
+md_config = ReportConfig(
+    report_type=ReportType.MONTHLY,
+    format=ReportFormat.MARKDOWN,
+)
+md_report = report_generator.generate_report(md_config, report_data)
+print(f"Markdown报告: {md_report}")
+```
+
+---
+
+### 9. 数据库管理 (Database Manager)
+
+#### 基本用法
+
 ```python
 from module_06_monitoring_alerting import get_monitoring_database_manager
+from datetime import datetime
 
-monitoring_db = get_monitoring_database_manager()
+# 获取数据库管理器实例（单例模式）
+db_manager = get_monitoring_database_manager("data/module06_monitoring.db")
 ```
 
-#### 主要方法
+#### 保存数据
 
-**保存监控数据**
-- `save_health_status(timestamp: datetime, cpu_usage: float, memory_usage: float, disk_usage: float) -> bool`
-- `save_performance_metrics(timestamp: datetime, operation: str, duration: float, success: bool) -> bool`
-- `save_alert(alert_type: str, severity: str, message: str, timestamp: datetime, data: Dict = None) -> bool`
-- `save_market_event(symbol: str, event_type: str, data: Dict, timestamp: datetime) -> bool`
-
-**查询监控数据**
-- `get_health_history(start_date: datetime = None, end_date: datetime = None) -> pd.DataFrame`
-- `get_performance_history(operation: str = None, start_date: datetime = None) -> pd.DataFrame`
-- `get_alerts(severity: str = None, start_date: datetime = None, limit: int = 100) -> List[Dict]`
-- `get_market_events(symbol: str = None, event_type: str = None, start_date: datetime = None) -> List[Dict]`
-
-**统计和报表**
-- `get_system_uptime() -> timedelta`
-- `get_alert_statistics(start_date: datetime = None) -> Dict[str, int]`
-- `get_performance_summary(start_date: datetime = None) -> Dict[str, Any]`
-- `get_database_stats() -> Dict[str, Any]`
-
-#### 使用示例
 ```python
-monitoring_db = get_monitoring_database_manager()
-
-# 保存健康状态
-monitoring_db.save_health_status(
+# 保存系统健康状态
+db_manager.save_health_status(
     timestamp=datetime.now(),
     cpu_usage=45.2,
     memory_usage=62.8,
-    disk_usage=35.1
+    disk_usage=35.1,
+    network_sent_mb=1.5,
+    network_recv_mb=3.2,
+    active_threads=150,
+    python_memory_mb=512.0,
+    status="healthy"
 )
 
-# 查询预警
-alerts = monitoring_db.get_alerts(
-    severity='high',
-    start_date=datetime.now() - timedelta(days=7)
+# 保存性能指标
+db_manager.save_performance_metrics(
+    timestamp=datetime.now(),
+    operation="data_collection",
+    duration=0.123,
+    success=True,
+    metadata={"source": "akshare", "symbols": 100}
 )
 
-# 获取统计
-stats = monitoring_db.get_alert_statistics(
-    start_date=datetime.now() - timedelta(days=30)
+# 保存告警
+db_manager.save_alert(
+    alert_id="alert_001",
+    rule_id="cpu_high_rule",
+    timestamp=datetime.now(),
+    severity="high",
+    category="system",
+    title="CPU使用率过高",
+    message="CPU使用率达到85%",
+    metric_value=85.0,
+    threshold_value=80.0,
+    status="triggered"
+)
+
+# 保存市场事件
+db_manager.save_market_event(
+    event_id="event_001",
+    timestamp=datetime.now(),
+    symbol="000001",
+    event_type="price_spike",
+    severity=0.8,
+    description="价格异常波动",
+    affected_symbols=["000001", "000002"],
+    data={"change_percent": 0.08}
+)
+
+# 保存投资组合快照
+db_manager.save_portfolio_snapshot(
+    timestamp=datetime.now(),
+    metrics={
+        "total_value": 1000000,
+        "cash_balance": 100000,
+        "daily_pnl": 5000,
+        "daily_return": 0.005,
+        "sharpe_ratio": 1.5,
+        "max_drawdown": -0.08,
+        "num_positions": 10,
+        "status": "normal"
+    }
+)
+
+# 保存通知记录
+db_manager.save_notification(
+    notification_id="notif_001",
+    timestamp=datetime.now(),
+    type="alert",
+    priority="high",
+    channel="email",
+    recipient="admin@example.com",
+    subject="系统告警",
+    message="CPU使用率过高",
+    sent_at=datetime.now(),
+    delivered=True
+)
+
+# 保存报告记录
+db_manager.save_report(
+    report_id="report_001",
+    report_type="daily",
+    period_start=datetime.now(),
+    period_end=datetime.now(),
+    generated_at=datetime.now(),
+    format="html",
+    file_path="/reports/daily_report.html",
+    status="completed"
 )
 ```
+
+#### 查询数据
+
+```python
+from datetime import datetime, timedelta
+import pandas as pd
+
+# 查询健康历史
+health_df = db_manager.get_health_history(
+    start_date=datetime.now() - timedelta(days=7),
+    end_date=datetime.now(),
+    limit=1000
+)
+print(f"健康记录: {len(health_df)}条")
+
+# 查询性能历史
+perf_df = db_manager.get_performance_history(
+    operation="data_collection",
+    start_date=datetime.now() - timedelta(days=1),
+    limit=100
+)
+print(f"性能记录: {len(perf_df)}条")
+
+# 查询告警
+alerts = db_manager.get_alerts(
+    severity="high",
+    category="system",
+    status="triggered",
+    start_date=datetime.now() - timedelta(days=7),
+    limit=50
+)
+print(f"告警记录: {len(alerts)}条")
+
+# 查询市场事件
+events = db_manager.get_market_events(
+    symbol="000001",
+    event_type="price_spike",
+    start_date=datetime.now() - timedelta(days=7),
+    limit=100
+)
+print(f"市场事件: {len(events)}条")
+
+# 查询投资组合快照
+snapshots_df = db_manager.get_portfolio_snapshots(
+    start_date=datetime.now() - timedelta(days=30),
+    end_date=datetime.now(),
+    limit=1000
+)
+print(f"快照记录: {len(snapshots_df)}条")
+```
+
+#### 统计和摘要
+
+```python
+# 获取告警统计
+alert_stats = db_manager.get_alert_statistics(
+    start_date=datetime.now() - timedelta(days=30)
+)
+print(f"告警统计:")
+print(f"  总数: {alert_stats.get('total', 0)}")
+for severity, count in alert_stats.items():
+    if severity != 'total':
+        print(f"  {severity}: {count}")
+
+# 获取性能摘要
+perf_summary = db_manager.get_performance_summary(
+    start_date=datetime.now() - timedelta(days=7)
+)
+print(f"性能摘要:")
+for operation, stats in perf_summary.items():
+    print(f"{operation}:")
+    print(f"  执行次数: {stats['count']}")
+    print(f"  平均耗时: {stats['avg_duration']:.3f}秒")
+    print(f"  成功率: {stats['success_rate']:.2%}")
+```
+
+#### 数据清理
+
+```python
+# 清理30天前的旧数据
+deleted = db_manager.cleanup_old_data(days=30)
+
+print(f"清理结果:")
+for table, count in deleted.items():
+    print(f"  {table}: 删除{count}条记录")
+```
+
+---
 
 ## 与其他模块集成
 
 ### 与 Module 01 (数据管道) 集成
+
 ```python
-# 监控数据采集性能
 from module_01_data_pipeline import AkshareDataCollector
-from module_06_monitoring_alerting import PerformanceMonitor
+from module_06_monitoring_alerting.real_time_monitoring.performance_tracker import get_performance_tracker
 
-perf_monitor = PerformanceMonitor(config)
+# 追踪数据采集性能
 collector = AkshareDataCollector()
+tracker = get_performance_tracker()
 
-with perf_monitor.track_operation("data_fetch"):
+with tracker.track("akshare_data_fetch"):
     data = collector.fetch_stock_history("000001", "20241101", "20241201")
 
-# 如果数据采集过慢，发送告警
-if perf_monitor.get_last_duration("data_fetch") > 5.0:
-    notifier.send_notification(
-        title='数据采集缓慢',
-        message='数据采集耗时超过5秒',
-        severity='medium'
-    )
-```
-
-### 与 Module 03 (AI模型) 集成
-```python
-# 监控模型推理性能
-from module_03_ai_models import LSTMModel
-from module_06_monitoring_alerting import PerformanceMonitor
-
-perf_monitor = PerformanceMonitor(config)
-lstm_model = LSTMModel.load_model("risk_predictor")
-
-with perf_monitor.track_operation("model_inference"):
-    predictions = lstm_model.predict(features)
-
-# 追踪模型准确率
-monitoring_db.save_performance_metrics(
-    timestamp=datetime.now(),
-    operation='model_inference',
-    duration=perf_monitor.get_last_duration("model_inference"),
-    success=True
-)
+# 获取统计
+stats = tracker.get_stats("akshare_data_fetch")
+print(f"平均耗时: {stats['akshare_data_fetch'].avg_duration:.3f}秒")
 ```
 
 ### 与 Module 05 (风险管理) 集成
+
 ```python
-# 监控风险指标变化
 from module_05_risk_management import PortfolioRiskAnalyzer
-from module_06_monitoring_alerting import RiskAlertEngine
+from module_06_monitoring_alerting import (
+    AlertManager,
+    AlertSeverity,
+    AlertCategory,
+    NotificationManager,
+    NotificationChannel,
+    NotificationPriority,
+    NotificationType,
+)
+from module_06_monitoring_alerting.alert_system import AlertRule
+import pandas as pd
 
-risk_analyzer = PortfolioRiskAnalyzer(config)
-risk_alert = RiskAlertEngine(alert_config)
+# 创建风险分析器
+risk_analyzer = PortfolioRiskAnalyzer()
 
-# 计算风险
+# 创建告警管理器
+alert_manager = AlertManager()
+
+# 添加风险告警规则
+var_rule = AlertRule(
+    rule_id="var_breach",
+    name="VaR突破",
+    description="VaR超过阈值",
+    category=AlertCategory.RISK,
+    severity=AlertSeverity.HIGH,
+    condition="var_95 < -0.05",
+    threshold=-0.05,
+    comparison="<",
+    metric="var_95",
+)
+alert_manager.add_rule(var_rule)
+
+# 计算风险并检查告警
+portfolio = {'000001': {'weight': 0.3}, '600036': {'weight': 0.4}}
+returns = pd.DataFrame(...)  # 收益率数据
 risk_metrics = risk_analyzer.analyze_portfolio_risk(portfolio, returns)
 
-# 检查风险预警
-alerts = await risk_alert.check_portfolio_risk(portfolio)
+# 检查告警
+alerts = alert_manager.check_rules({"var_95": risk_metrics['var_95']})
 
-# 如果有预警，发送通知
+# 发送通知
 if alerts:
+    notifier = NotificationManager()
     for alert in alerts:
-        await notifier.send_notification(
-            title=f"风险预警: {alert['type']}",
-            message=alert['message'],
-            severity=alert['severity'],
-            data=alert
+        notifier.send_notification(
+            type=NotificationType.ALERT,
+            priority=NotificationPriority.HIGH,
+            channel=NotificationChannel.EMAIL,
+            recipient="risk@example.com",
+            subject=f"风险告警: {alert.title}",
+            message=alert.message
         )
 ```
 
-### 与 Module 08 (执行) 集成
+---
+
+## 完整示例
+
 ```python
-# 监控订单执行
-from module_08_execution import OrderManager
-from module_06_monitoring_alerting import MarketWatchdog
-
-order_manager = OrderManager()
-watchdog = MarketWatchdog(config)
-
-# 提交订单
-order = order_manager.create_order('000001', 1000, 15.5)
-result = order_manager.submit_order(order)
-
-# 记录执行事件
-monitoring_db.save_market_event(
-    symbol='000001',
-    event_type='order_executed',
-    data={
-        'order_id': order.order_id,
-        'quantity': 1000,
-        'price': 15.5,
-        'status': result['status']
-    },
-    timestamp=datetime.now()
+import asyncio
+from datetime import datetime
+from module_06_monitoring_alerting import (
+    get_monitoring_database_manager,
+    AlertManager,
+    AlertConfig,
+    AlertSeverity,
+    AlertCategory,
+    NotificationManager,
+    NotificationConfig,
+    NotificationChannel,
+    NotificationPriority,
+    NotificationType,
 )
-```
+from module_06_monitoring_alerting.alert_system import AlertRule
+from module_06_monitoring_alerting.real_time_monitoring.system_monitor import get_system_monitor
+from module_06_monitoring_alerting.real_time_monitoring.performance_tracker import get_performance_tracker
 
-## 实时监控仪表板
-
-### WebSocket实时推送
-
-```python
-from module_06_monitoring_alerting import WebSocketBroadcaster
-
-broadcaster = WebSocketBroadcaster()
-
-# 实时推送系统状态
-async def push_system_status():
-    while True:
-        status = health_monitor.get_health_status()
-        await broadcaster.broadcast('system_status', status)
+async def main():
+    """完整的监控流程"""
+    
+    # 1. 初始化组件
+    system_monitor = get_system_monitor()
+    tracker = get_performance_tracker()
+    db_manager = get_monitoring_database_manager()
+    alert_manager = AlertManager(AlertConfig())
+    notifier = NotificationManager(NotificationConfig())
+    
+    # 2. 添加告警规则
+    cpu_rule = AlertRule(
+        rule_id="cpu_high",
+        name="CPU使用率高",
+        description="CPU超过80%",
+        category=AlertCategory.SYSTEM,
+        severity=AlertSeverity.WARNING,
+        condition="cpu_percent > 80",
+        threshold=80.0,
+        comparison=">",
+        metric="cpu_percent",
+    )
+    alert_manager.add_rule(cpu_rule)
+    
+    # 3. 监控循环
+    for _ in range(5):
+        # 获取系统状态
+        status = system_monitor.get_system_status()
+        
+        # 保存到数据库
+        db_manager.save_health_status(
+            timestamp=datetime.now(),
+            cpu_usage=status.cpu_percent,
+            memory_usage=status.memory_percent,
+            disk_usage=status.disk_percent,
+        )
+        
+        # 检查告警
+        alerts = alert_manager.check_rules({"cpu_percent": status.cpu_percent})
+        
+        # 处理告警
+        for alert in alerts:
+            # 保存告警
+            db_manager.save_alert(
+                alert_id=alert.alert_id,
+                rule_id=alert.rule_id,
+                timestamp=alert.timestamp,
+                severity=alert.severity.name,
+                category=alert.category.name,
+                title=alert.title,
+                message=alert.message,
+                metric_value=alert.metric_value,
+                threshold_value=alert.threshold_value,
+            )
+            
+            # 发送通知
+            notifier.send_notification(
+                type=NotificationType.ALERT,
+                priority=NotificationPriority.HIGH,
+                channel=NotificationChannel.EMAIL,
+                recipient="admin@example.com",
+                subject=alert.title,
+                message=alert.message,
+            )
+        
         await asyncio.sleep(10)
+    
+    print("监控完成")
 
-# 实时推送市场预警
-async def push_market_alerts():
-    async for alert in watchdog.alert_stream():
-        await broadcaster.broadcast('market_alert', alert)
-
-# 前端订阅
-# ws://localhost:8000/ws/monitoring
+# 运行
+# asyncio.run(main())
 ```
 
-### 监控API端点
+---
 
-```python
-from fastapi import FastAPI
-from module_06_monitoring_alerting import get_monitoring_router
+## 测试
 
-app = FastAPI()
-app.include_router(get_monitoring_router())
+### 运行测试
 
-# GET /api/v1/monitoring/health - 系统健康状态
-# GET /api/v1/monitoring/performance - 性能指标
-# GET /api/v1/monitoring/alerts - 预警列表
-# GET /api/v1/monitoring/logs - 日志查询
-# POST /api/v1/monitoring/alert/acknowledge - 确认预警
-```
-
-## 便捷函数
-
-```python
-# 快速健康检查
-from module_06_monitoring_alerting import quick_health_check
-
-health = quick_health_check()
-if not health['is_healthy']:
-    print(f"系统问题: {health['issues']}")
-
-# 快速发送告警
-from module_06_monitoring_alerting import send_alert
-
-send_alert("价格突破", "000001突破16.5元", severity='medium')
-
-# 快速生成报告
-from module_06_monitoring_alerting import generate_report
-
-report = generate_report('daily', date=datetime.now().date())
-
-# 快速查询日志
-from module_06_monitoring_alerting import query_logs
-
-logs = query_logs(level='ERROR', last_hours=24)
-```
-
-## 测试和示例
-
-### 运行完整测试
 ```bash
+# 激活conda环境
+conda activate study
+
+# 运行Module 06测试
 cd /Users/victor/Desktop/25fininnov/FinLoom-server
-python tests/module06_monitoring_alerting_test.py
+python tests/module06_test.py
 ```
 
-### 测试覆盖内容
-- 系统健康监控测试
-- 性能追踪测试
-- 市场监控和预警测试
-- 风险告警测试
-- 通知服务测试
-- 日志聚合和分析测试
-- 报告生成测试
-- 数据库操作测试
-- WebSocket推送测试
-- API端点测试
+### 测试覆盖
 
-## 配置说明
+测试文件 `tests/module06_test.py` 包含以下测试：
 
-### 环境变量
-- `MODULE06_DB_PATH`: 监控数据库路径
-- `MODULE06_EMAIL_SERVER`: 邮件服务器地址
-- `MODULE06_EMAIL_PASSWORD`: 邮件密码
-- `MODULE06_WEBHOOK_URL`: Webhook地址
-- `MODULE06_LOG_LEVEL`: 日志级别
+1. 系统监控器测试
+2. 性能监控器测试
+3. 性能追踪器测试
+4. 告警管理器测试
+5. 通知管理器测试
+6. 报告生成器测试
+7. 数据库管理器测试
+8. 集成测试
 
-### 监控配置文件
-```yaml
-# config/monitoring_config.yaml
-system_monitoring:
-  check_interval: 60
-  cpu_threshold: 80
-  memory_threshold: 85
-  disk_threshold: 90
+---
 
-market_monitoring:
-  price_change_threshold: 0.05
-  volume_surge_multiplier: 3.0
-  check_interval: 30
+## 数据结构
 
-notifications:
-  email_enabled: true
-  webhook_enabled: true
-  websocket_enabled: true
-  priority_threshold: 'medium'
-
-reporting:
-  daily_report_time: '18:00'
-  weekly_report_day: 'Friday'
-  monthly_report_day: 1
+### AlertSeverity (告警严重级别)
+```python
+class AlertSeverity(Enum):
+    INFO = "info"
+    LOW = "low"
+    WARNING = "warning"
+    HIGH = "high"
+    CRITICAL = "critical"
 ```
 
-## 性能基准
+### AlertCategory (告警类别)
+```python
+class AlertCategory(Enum):
+    SYSTEM = "system"
+    PERFORMANCE = "performance"
+    RISK = "risk"
+    MARKET = "market"
+    PORTFOLIO = "portfolio"
+    EXECUTION = "execution"
+```
 
-| 操作 | 处理时间 | 内存使用 |
-|------|----------|----------|
-| 健康检查 | ~10ms | ~2MB |
-| 性能指标记录 | ~5ms | ~1MB |
-| 预警检查 | ~50ms | ~5MB |
-| 通知发送 | ~100ms | ~3MB |
-| 日志分析 | ~200ms | ~20MB |
-| 报告生成 | ~2s | ~50MB |
+### AlertStatus (告警状态)
+```python
+class AlertStatus(Enum):
+    TRIGGERED = "triggered"
+    ACKNOWLEDGED = "acknowledged"
+    RESOLVED = "resolved"
+    SUPPRESSED = "suppressed"
+```
 
-## 总结
+### NotificationChannel (通知渠道)
+```python
+class NotificationChannel(Enum):
+    EMAIL = "email"
+    WEBHOOK = "webhook"
+    SMS = "sms"
+    WEBSOCKET = "websocket"
+```
 
-Module 06 监控告警模块提供了全方位的系统监控和预警能力：
+### NotificationPriority (通知优先级)
+```python
+class NotificationPriority(Enum):
+    LOW = "low"
+    NORMAL = "normal"
+    HIGH = "high"
+    URGENT = "urgent"
+```
 
-### 功能完整性 ✅
-- ✓ 系统健康实时监控
-- ✓ 性能指标追踪和分析
-- ✓ 市场数据监控和预警
-- ✓ 风险实时预警
-- ✓ 多渠道通知服务
-- ✓ 日志聚合和分析
-- ✓ 定时报告生成
+### NotificationType (通知类型)
+```python
+class NotificationType(Enum):
+    ALERT = "alert"
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+    SYSTEM = "system"
+    MARKET = "market"
+    PORTFOLIO = "portfolio"
+```
 
-### 集成能力 ✅
-- ✓ 与所有模块深度集成
-- ✓ 实时数据推送
-- ✓ REST API接口
-- ✓ WebSocket推送
+### ReportType (报告类型)
+```python
+class ReportType(Enum):
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    CUSTOM = "custom"
+```
 
-### 实用性 ✅
-- ✓ 7×24小时持续监控
-- ✓ 智能预警和通知
-- ✓ 详细的历史数据
-- ✓ 灵活的报告系统
+### ReportFormat (报告格式)
+```python
+class ReportFormat(Enum):
+    HTML = "html"
+    JSON = "json"
+    EXCEL = "excel"
+    MARKDOWN = "markdown"
+```
 
-**结论**: Module 06 提供了企业级的监控告警解决方案，确保系统稳定运行和及时响应异常。
+### MarketRegime (市场状态)
+```python
+class MarketRegime(Enum):
+    BULL = "bull"
+    BEAR = "bear"
+    SIDEWAYS = "sideways"
+    VOLATILE = "volatile"
+    CRASH = "crash"
+    RALLY = "rally"
+```
 
+### MarketCondition (市场条件)
+```python
+class MarketCondition(Enum):
+    NORMAL = "normal"
+    OVERBOUGHT = "overbought"
+    OVERSOLD = "oversold"
+    HIGH_VOLATILITY = "high_volatility"
+    LOW_LIQUIDITY = "low_liquidity"
+```
+
+---
+
+## 最佳实践
+
+### 1. 系统监控
+- 设置合理的监控间隔（建议60秒）
+- 注册回调函数处理异常状态
+- 定期检查系统健康状态
+- 及时响应告警信号
+
+### 2. 性能追踪
+- 对关键操作使用性能追踪
+- 定期分析慢操作和失败操作
+- 设置合理的性能阈值
+- 记录详细的元数据便于分析
+
+### 3. 告警管理
+- 设置合理的告警阈值避免告警疲劳
+- 使用告警抑制避免重复告警
+- 及时确认和解决告警
+- 定期分析告警统计优化规则
+
+### 4. 通知服务
+- 配置合理的速率限制
+- 使用模板提高通知质量
+- 启用聚合减少通知数量
+- 定期检查通知发送状态
+
+### 5. 报告生成
+- 选择合适的报告格式
+- 定期生成报告保存历史
+- 包含关键指标和图表
+- 及时分发报告给相关人员
+
+---
+
+## 环境变量配置
+
+```bash
+# 数据库路径
+MODULE06_DB_PATH="data/module06_monitoring.db"
+
+# 邮件配置
+MODULE06_EMAIL_SERVER="smtp.gmail.com"
+MODULE06_EMAIL_PORT=587
+MODULE06_EMAIL_USER="your_email@example.com"
+MODULE06_EMAIL_PASSWORD="your_password"
+
+# Webhook配置
+MODULE06_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+
+# 日志级别
+MODULE06_LOG_LEVEL="INFO"
+```
+
+---
+
+## 常见问题
+
+### 1. 系统监控器无法启动？
+确保有足够的系统权限读取系统信息，在某些操作系统上可能需要管理员权限。
+
+### 2. 邮件通知发送失败？
+检查SMTP服务器配置、账号密码、网络连接和防火墙设置。
+
+### 3. 数据库操作失败？
+确保数据库文件路径存在且有写权限，检查磁盘空间是否充足。
+
+### 4. 告警规则不生效？
+检查规则是否已启用，条件表达式是否正确，冷却时间是否合理。
+
+### 5. 性能追踪数据过多？
+可以调整`max_records`参数限制记录数量，或定期清理旧数据。
+
+---
+
+## 更新日志
+
+### v1.0.0 (2024-10-04)
+- ✅ 实现系统监控器（SystemMonitor）
+- ✅ 实现性能监控器（PerformanceMonitor）
+- ✅ 实现性能追踪器（PerformanceTracker）
+- ✅ 实现市场监控器（MarketMonitor）
+- ✅ 实现投资组合监控器（PortfolioMonitor）
+- ✅ 实现告警管理器（AlertManager）
+- ✅ 实现通知管理器（NotificationManager）
+- ✅ 实现邮件通知器（EmailNotifier）
+- ✅ 实现Webhook通知器（WebhookNotifier）
+- ✅ 实现报告生成器（ReportGenerator）
+- ✅ 实现数据库管理器（MonitoringDatabaseManager）
+- ✅ 完成单元测试和集成测试
+- ✅ 编写完整的API文档
+
+---
+
+## 联系方式
+
+如有问题或建议，请联系开发团队或提交Issue。

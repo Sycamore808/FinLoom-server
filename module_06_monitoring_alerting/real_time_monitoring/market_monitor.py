@@ -4,7 +4,7 @@
 """
 
 import asyncio
-from collections import deque
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
@@ -12,11 +12,12 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+from scipy import stats
+
 from common.constants import TRADING_DAYS_PER_YEAR
 from common.data_structures import MarketData
 from common.exceptions import ModelError
 from common.logging_system import setup_logger
-from scipy import stats
 
 logger = setup_logger("market_monitor")
 
