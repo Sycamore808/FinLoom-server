@@ -17,8 +17,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import seaborn as sns
-from common.constants import TRADING_DAYS_PER_YEAR
-from common.logging_system import setup_logger
 from jinja2 import Template
 from matplotlib.backends.backend_pdf import PdfPages
 from plotly.subplots import make_subplots
@@ -37,6 +35,9 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from common.constants import TRADING_DAYS_PER_YEAR
+from common.logging_system import setup_logger
+
 logger = setup_logger("report_generator")
 
 
@@ -52,7 +53,7 @@ class ReportConfig:
     chart_theme: str = "plotly_white"
     language: str = "en"  # 'en' or 'zh'
     formats: List[str] = field(default_factory=lambda: ["html", "pdf", "excel"])
-    output_dir: str = "./reports"
+    output_dir: str = "module_09_backtesting/reports"
     timestamp: datetime = field(default_factory=datetime.now)
 
     def __post_init__(self):
@@ -1446,7 +1447,7 @@ class BacktestReportGenerator:
 def generate_backtest_report(
     backtest_result: Any,
     output_formats: List[str] = ["html", "pdf", "excel"],
-    output_dir: str = "./reports",
+    output_dir: str = "module_09_backtesting/reports",
 ) -> Dict[str, str]:
     """生成回测报告的便捷函数
 

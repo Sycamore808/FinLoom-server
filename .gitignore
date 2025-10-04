@@ -458,6 +458,16 @@ dashboards/
 grafana/
 prometheus/
 
+# Module-specific output directories
+module_06_monitoring_alerting/reports/
+module_07_optimization/optimization_workspace/
+module_09_backtesting/reports/
+module_11_visualization/reports/
+
+# Legacy output directories (deprecated)
+reports/
+optimization_workspace/
+
 # Alert configurations
 alerts/
 alert_configs/

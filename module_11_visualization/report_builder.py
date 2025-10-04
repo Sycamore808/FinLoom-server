@@ -13,10 +13,11 @@ import markdown
 import numpy as np
 import pandas as pd
 import pdfkit
+from jinja2 import Environment, FileSystemLoader, Template
+
 from common.data_structures import Position, Signal
 from common.exceptions import QuantSystemError
 from common.logging_system import setup_logger
-from jinja2 import Environment, FileSystemLoader, Template
 
 logger = setup_logger("report_builder")
 
@@ -71,7 +72,7 @@ class ReportBuilder:
     """报告生成器类"""
 
     TEMPLATE_DIR = "module_11_visualization/templates"
-    OUTPUT_DIR = "reports"
+    OUTPUT_DIR = "module_11_visualization/reports"
 
     DEFAULT_TEMPLATES = {
         "daily": "daily_report.html",

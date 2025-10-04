@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
+
 from common.logging_system import setup_logger
 from module_07_optimization.base_optimizer import OptimizationResult, Parameter
 from module_07_optimization.hyperparameter_tuning.bayesian_optimizer import (
@@ -33,7 +34,9 @@ class OptimizationManager:
     提供统一的优化接口和管理功能
     """
 
-    def __init__(self, workspace_dir: str = "./optimization_workspace"):
+    def __init__(
+        self, workspace_dir: str = "module_07_optimization/optimization_workspace"
+    ):
         """初始化优化管理器
 
         Args:
@@ -139,6 +142,19 @@ class OptimizationManager:
             optimizer = NSGAOptimizer(
                 parameter_space=parameter_space,
                 objective_functions=objective_functions,
+                **kwargs,
+            )
+            result = optimizer.optimize()
+
+        elif optimizer_type == "random":
+            from module_07_optimization.hyperparameter_tuning.random_search import (
+                RandomSearchOptimizer,
+            )
+
+            optimizer = RandomSearchOptimizer(
+                parameter_space=parameter_space,
+                objective_function=objective_function,
+                n_trials=n_trials,
                 **kwargs,
             )
             result = optimizer.optimize()

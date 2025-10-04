@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+
 from common.data_structures import Signal
 from common.logging_system import setup_logger
 from module_07_optimization.base_optimizer import Parameter
@@ -215,8 +216,8 @@ class StrategyOptimizer:
                 else:
                     returns.append(0)
 
-            # 计算性能指标
-            returns = np.array(returns)
+            # 计算性能指标（使用pandas Series以支持cummax等方法）
+            returns = pd.Series(returns)
 
             # 总收益
             total_return = (1 + returns).prod() - 1

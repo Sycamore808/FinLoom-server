@@ -83,7 +83,11 @@ class ReportData:
 class ReportGenerator:
     """报告生成器类"""
 
-    def __init__(self, template_dir: str = "templates", output_dir: str = "reports"):
+    def __init__(
+        self,
+        template_dir: str = "templates",
+        output_dir: str = "module_06_monitoring_alerting/reports",
+    ):
         """初始化报告生成器
 
         Args:

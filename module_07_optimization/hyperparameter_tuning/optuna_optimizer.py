@@ -7,7 +7,24 @@ from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
-import optuna
+
+try:
+    import optuna
+    from optuna import Trial as OptunaTrial
+    from optuna.pruners import HyperbandPruner, MedianPruner
+    from optuna.samplers import CmaEsSampler, RandomSampler, TPESampler
+
+    OPTUNA_AVAILABLE = True
+except ImportError:
+    OPTUNA_AVAILABLE = False
+    optuna = None
+    OptunaTrial = Any  # 占位类型
+    HyperbandPruner = None
+    MedianPruner = None
+    CmaEsSampler = None
+    RandomSampler = None
+    TPESampler = None
+
 from common.logging_system import setup_logger
 from module_07_optimization.base_optimizer import (
     BaseOptimizer,
@@ -16,14 +33,12 @@ from module_07_optimization.base_optimizer import (
     Parameter,
     Trial,
 )
-from optuna import Trial as OptunaTrial
-from optuna.pruners import HyperbandPruner, MedianPruner
-from optuna.samplers import CmaEsSampler, RandomSampler, TPESampler
 
 logger = setup_logger("optuna_optimizer")
 
 # 设置Optuna日志级别
-optuna.logging.set_verbosity(optuna.logging.WARNING)
+if OPTUNA_AVAILABLE:
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
 class OptunaOptimizer(BaseOptimizer):
@@ -57,6 +72,11 @@ class OptunaOptimizer(BaseOptimizer):
             n_ei_candidates: EI候选数（TPE采样器）
             random_state: 随机种子
         """
+        if not OPTUNA_AVAILABLE:
+            raise ImportError(
+                "Optuna is not installed. Please install it with: pip install optuna"
+            )
+
         super().__init__(
             parameter_space, objective_function, maximize, n_trials, random_state
         )
@@ -135,10 +155,9 @@ class OptunaOptimizer(BaseOptimizer):
                 trial.objective_value = objective_value
                 trial.status = OptimizationStatus.COMPLETED
 
-                # 存储额外指标
+                # 存储额外指标（注意：trial.state在运行期间不可用）
                 trial.metrics = {
                     "optuna_trial_number": optuna_trial.number,
-                    "optuna_trial_state": str(optuna_trial.state),
                 }
 
                 # 报告中间值（用于剪枝）
