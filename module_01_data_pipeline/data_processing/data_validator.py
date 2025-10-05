@@ -9,9 +9,16 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+
 from common.constants import DATA_QUALITY_THRESHOLD
 from common.exceptions import DataError
 from common.logging_system import setup_logger
+
+# 如果DATA_QUALITY_THRESHOLD不存在，使用默认值
+try:
+    from common.constants import DATA_QUALITY_THRESHOLD
+except ImportError:
+    DATA_QUALITY_THRESHOLD = 0.7  # 默认质量门限
 
 logger = setup_logger("data_validator")
 

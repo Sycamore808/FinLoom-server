@@ -9,13 +9,28 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import networkx as nx
 import numpy as np
 import pandas as pd
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+
+try:
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from torch_geometric.data import Data, DataLoader
+    from torch_geometric.nn import GATConv, GCNConv, GraphSAGE
+
+    TORCH_AVAILABLE = True
+except ImportError:
+    torch = None
+    nn = None
+    F = None
+    Data = None
+    DataLoader = None
+    GATConv = None
+    GCNConv = None
+    GraphSAGE = None
+    TORCH_AVAILABLE = False
+
 from common.exceptions import ModelError
 from common.logging_system import setup_logger
-from torch_geometric.data import Data, DataLoader
-from torch_geometric.nn import GATConv, GCNConv, GraphSAGE
 
 logger = setup_logger("graph_embeddings")
 
@@ -49,66 +64,77 @@ class GraphEmbedding:
     metadata: Dict[str, Any]
 
 
-class GraphNeuralNetwork(nn.Module):
-    """图神经网络模型"""
+if TORCH_AVAILABLE:
 
-    def __init__(self, config: GraphConfig, input_dim: int):
-        """初始化图神经网络
+    class GraphNeuralNetwork(nn.Module):
+        """图神经网络模型"""
 
-        Args:
-            config: 图配置
-            input_dim: 输入特征维度
-        """
-        super(GraphNeuralNetwork, self).__init__()
-        self.config = config
+        def __init__(self, config: GraphConfig, input_dim: int):
+            """初始化图神经网络
 
-        # 构建网络层
-        layers = []
-        prev_dim = input_dim
+            Args:
+                config: 图配置
+                input_dim: 输入特征维度
+            """
+            super(GraphNeuralNetwork, self).__init__()
+            self.config = config
 
-        for hidden_dim in config.hidden_dims:
-            if config.gnn_type == "GCN":
-                layers.append(GCNConv(prev_dim, hidden_dim))
-            elif config.gnn_type == "GAT":
-                layers.append(
-                    GATConv(
-                        prev_dim,
-                        hidden_dim // config.num_heads,
-                        heads=config.num_heads,
-                        dropout=config.dropout,
+            # 构建网络层
+            layers = []
+            prev_dim = input_dim
+
+            for hidden_dim in config.hidden_dims:
+                if config.gnn_type == "GCN":
+                    layers.append(GCNConv(prev_dim, hidden_dim))
+                elif config.gnn_type == "GAT":
+                    layers.append(
+                        GATConv(
+                            prev_dim,
+                            hidden_dim // config.num_heads,
+                            heads=config.num_heads,
+                            dropout=config.dropout,
+                        )
                     )
-                )
-                hidden_dim = hidden_dim  # GAT输出已经是hidden_dim
-            elif config.gnn_type == "GraphSAGE":
-                layers.append(GraphSAGE(prev_dim, hidden_dim))
-            else:
-                raise ValueError(f"Unknown GNN type: {config.gnn_type}")
-            prev_dim = hidden_dim
+                    hidden_dim = hidden_dim  # GAT输出已经是hidden_dim
+                elif config.gnn_type == "GraphSAGE":
+                    layers.append(GraphSAGE(prev_dim, hidden_dim))
+                else:
+                    raise ValueError(f"Unknown GNN type: {config.gnn_type}")
+                prev_dim = hidden_dim
 
-        self.layers = nn.ModuleList(layers)
+            self.layers = nn.ModuleList(layers)
 
-        # 输出层
-        self.output_layer = nn.Linear(prev_dim, config.embedding_dim)
-        self.dropout = nn.Dropout(config.dropout)
+            # 输出层
+            self.output_layer = nn.Linear(prev_dim, config.embedding_dim)
+            self.dropout = nn.Dropout(config.dropout)
 
-    def forward(self, x: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
-        """前向传播
+        def forward(self, x, edge_index):
+            """前向传播
 
-        Args:
-            x: 节点特征 (num_nodes, input_dim)
-            edge_index: 边索引 (2, num_edges)
+            Args:
+                x: 节点特征 (num_nodes, input_dim)
+                edge_index: 边索引 (2, num_edges)
 
-        Returns:
-            节点嵌入 (num_nodes, embedding_dim)
-        """
-        for i, layer in enumerate(self.layers):
-            x = layer(x, edge_index)
-            if i < len(self.layers) - 1:
-                x = F.relu(x)
-                x = self.dropout(x)
+            Returns:
+                节点嵌入 (num_nodes, embedding_dim)
+            """
+            for i, layer in enumerate(self.layers):
+                x = layer(x, edge_index)
+                if i < len(self.layers) - 1:
+                    x = F.relu(x)
+                    x = self.dropout(x)
 
-        x = self.output_layer(x)
-        return x
+            x = self.output_layer(x)
+            return x
+else:
+
+    class GraphNeuralNetwork:
+        """PyTorch不可用时的占位符类"""
+
+        def __init__(self, *args, **kwargs):
+            raise ImportError(
+                "PyTorch is required for GraphNeuralNetwork but not available"
+            )
 
 
 class GraphEmbeddingExtractor:
