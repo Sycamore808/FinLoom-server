@@ -11,9 +11,10 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import jieba
 import jieba.analyse
 import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+
 from common.exceptions import QuantSystemError
 from common.logging_system import setup_logger
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 logger = setup_logger("nlp_processor")
 

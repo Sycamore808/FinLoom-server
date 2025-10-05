@@ -80,12 +80,20 @@ class ConversationHistoryManager:
                 confidence REAL,
                 context_state TEXT,
                 metadata TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_session_id (session_id),
-                INDEX idx_user_id (user_id),
-                INDEX idx_timestamp (timestamp)
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # 创建索引
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_session_id ON conversations(session_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_user_id ON conversations(user_id)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_timestamp ON conversations(timestamp)"
+        )
 
         conn.commit()
         conn.close()
@@ -490,6 +498,159 @@ class ConversationHistoryManager:
             context_state=row[10],
             metadata=json.loads(row[11]) if row[11] else {},
         )
+
+    def _get_statistics_sqlite(
+        self,
+        user_id: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """从SQLite获取统计信息
+
+        Args:
+            user_id: 用户ID（可选）
+            start_date: 开始日期（可选）
+            end_date: 结束日期（可选）
+
+        Returns:
+            统计信息字典
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        try:
+            # 构建查询条件
+            conditions = []
+            params = []
+
+            if user_id:
+                conditions.append("user_id = ?")
+                params.append(user_id)
+            if start_date:
+                conditions.append("timestamp >= ?")
+                params.append(start_date.isoformat())
+            if end_date:
+                conditions.append("timestamp <= ?")
+                params.append(end_date.isoformat())
+
+            where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+            # 总会话数
+            cursor.execute(
+                f"SELECT COUNT(DISTINCT session_id) FROM conversations {where_clause}",
+                params,
+            )
+            total_conversations = cursor.fetchone()[0]
+
+            # 总回合数
+            cursor.execute(f"SELECT COUNT(*) FROM conversations {where_clause}", params)
+            total_turns = cursor.fetchone()[0]
+
+            # 平均回合数
+            average_turns = (
+                total_turns / total_conversations if total_conversations > 0 else 0
+            )
+
+            # 最常见意图
+            cursor.execute(
+                f"SELECT intent, COUNT(*) as count FROM conversations {where_clause} GROUP BY intent ORDER BY count DESC LIMIT 5",
+                params,
+            )
+            most_common_intents = {row[0]: row[1] for row in cursor.fetchall()}
+
+            # 平均置信度
+            cursor.execute(
+                f"SELECT AVG(confidence) FROM conversations {where_clause}", params
+            )
+            average_confidence = cursor.fetchone()[0] or 0
+
+            # 用户数
+            cursor.execute(
+                f"SELECT COUNT(DISTINCT user_id) FROM conversations {where_clause}",
+                params,
+            )
+            user_count = cursor.fetchone()[0]
+
+            return {
+                "total_conversations": total_conversations,
+                "total_turns": total_turns,
+                "average_turns_per_session": average_turns,
+                "most_common_intents": most_common_intents,
+                "average_confidence": average_confidence,
+                "user_count": user_count,
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting statistics from SQLite: {e}")
+            return {
+                "total_conversations": 0,
+                "total_turns": 0,
+                "average_turns_per_session": 0,
+                "most_common_intents": {},
+                "average_confidence": 0,
+                "user_count": 0,
+            }
+        finally:
+            conn.close()
+
+    def _get_statistics_memory(
+        self,
+        user_id: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """从内存获取统计信息
+
+        Args:
+            user_id: 用户ID（可选）
+            start_date: 开始日期（可选）
+            end_date: 结束日期（可选）
+
+        Returns:
+            统计信息字典
+        """
+        # 过滤记录
+        records = [r for session in self.memory_storage.values() for r in session]
+
+        if user_id:
+            records = [r for r in records if r.user_id == user_id]
+        if start_date:
+            records = [r for r in records if r.timestamp >= start_date]
+        if end_date:
+            records = [r for r in records if r.timestamp <= end_date]
+
+        # 统计
+        sessions = set(r.session_id for r in records)
+        total_conversations = len(sessions)
+        total_turns = len(records)
+        average_turns = (
+            total_turns / total_conversations if total_conversations > 0 else 0
+        )
+
+        # 最常见意图
+        intent_counts = {}
+        for record in records:
+            intent_counts[record.intent] = intent_counts.get(record.intent, 0) + 1
+        most_common_intents = dict(
+            sorted(intent_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        )
+
+        # 平均置信度
+        confidences = [r.confidence for r in records if r.confidence is not None]
+        average_confidence = sum(confidences) / len(confidences) if confidences else 0
+
+        # 用户数
+        users = set(r.user_id for r in records)
+        user_count = len(users)
+
+        return {
+            "total_conversations": total_conversations,
+            "total_turns": total_turns,
+            "average_turns_per_session": average_turns,
+            "most_common_intents": most_common_intents,
+            "average_confidence": average_confidence,
+            "user_count": user_count,
+        }
 
     def _export_to_json(self, records: List[ConversationRecord], output_path: str):
         """导出为JSON格式
