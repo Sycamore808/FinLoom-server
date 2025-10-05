@@ -64,9 +64,7 @@ class FINR1Integration:
         self.config = config
         model_config = config.get("model", {})
 
-        self.model_path = model_config.get(
-            "model_path", "/Users/victor/Desktop/25fininnov/Fin-R1"
-        )
+        self.model_path = model_config.get("model_path", ".Fin-R1")
         self.device = model_config.get("device", "cpu")
         self.batch_size = model_config.get("batch_size", 1)
         self.max_length = model_config.get("max_length", 2048)

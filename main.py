@@ -145,6 +145,82 @@ def find_available_port(start_port=8000, max_port=8010):
     return None
 
 
+def setup_fin_r1_model():
+    """设置FIN-R1模型（自动下载）"""
+    model_dir = project_root / ".Fin-R1"
+
+    print("🔍 检查FIN-R1模型...")
+
+    # 检查模型是否已存在
+    if model_dir.exists() and (model_dir / "config.json").exists():
+        print("✅ FIN-R1模型已存在")
+        return True
+
+    print("📥 FIN-R1模型不存在，开始下载...")
+    print("=" * 50)
+
+    # 检查git lfs是否安装
+    try:
+        result = subprocess.run(
+            ["git", "lfs", "version"], capture_output=True, text=True, timeout=10
+        )
+        if result.returncode != 0:
+            print("⚠️  Git LFS未安装，正在安装...")
+            try:
+                subprocess.run(["git", "lfs", "install"], check=True, timeout=30)
+                print("✅ Git LFS安装成功")
+            except Exception as e:
+                print(f"❌ Git LFS安装失败: {e}")
+                print("请手动安装Git LFS: https://git-lfs.github.com/")
+                return False
+        else:
+            print(f"✅ Git LFS已安装: {result.stdout.strip()}")
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        print(f"❌ 无法检查Git LFS: {e}")
+        print("请确保已安装Git和Git LFS")
+        return False
+
+    # 克隆模型
+    try:
+        print("📦 正在从ModelScope下载FIN-R1模型...")
+        print("这可能需要几分钟时间，请耐心等待...")
+
+        # 使用git clone下载模型
+        cmd = [
+            "git",
+            "clone",
+            "https://www.modelscope.cn/AI-ModelScope/Fin-R1.git",
+            str(model_dir),
+        ]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=1800,  # 30分钟超时
+        )
+
+        if result.returncode == 0:
+            print("✅ FIN-R1模型下载成功")
+            return True
+        else:
+            print(f"❌ FIN-R1模型下载失败: {result.stderr}")
+            print("\n您可以手动下载模型：")
+            print("  git lfs install")
+            print(
+                "  git clone https://www.modelscope.cn/AI-ModelScope/Fin-R1.git .Fin-R1"
+            )
+            return False
+
+    except subprocess.TimeoutExpired:
+        print("❌ 下载超时（30分钟）")
+        print("请检查网络连接或手动下载模型")
+        return False
+    except Exception as e:
+        print(f"❌ 下载过程出错: {e}")
+        return False
+
+
 def kill_process_on_port(port):
     """终止占用指定端口的进程"""
     try:
@@ -236,6 +312,11 @@ class FinLoomEngine:
             self.system_config = {}
             self.model_config = {"fin_r1": {}}
             self.trading_config = {}
+
+        # 环境检查完成后，设置FIN-R1模型
+        print("\n" + "=" * 50)
+        setup_fin_r1_model()
+        print("=" * 50 + "\n")
 
         # 标记为已就绪（跳过复杂的模型初始化）
         self.ai_models_loaded = True

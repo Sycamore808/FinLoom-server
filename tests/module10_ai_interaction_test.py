@@ -343,9 +343,7 @@ async def test_fin_r1_integration(use_model=False):
 
     config = {
         "model": {
-            "model_path": "/Users/victor/Desktop/25fininnov/Fin-R1"
-            if use_model
-            else "",
+            "model_path": ".Fin-R1" if use_model else "",
             "device": "cpu",
             "max_length": 2048,
             "temperature": 0.7,

@@ -2,7 +2,7 @@
 
 # FIN-R1模型配置
 fin_r1:
-  model_path: "../Fin-R1"  # 模型路径
+  model_path: ".Fin-R1"  # 模型路径
   device: "cpu"  # 使用设备: cpu/cuda
   batch_size: 32
   max_length: 512

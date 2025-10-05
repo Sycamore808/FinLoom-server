@@ -1,7 +1,7 @@
 # FIN-R1模型配置文件
 model:
   # 模型路径（相对于FinLoom-server目录）
-  model_path: "/Users/victor/Desktop/25fininnov/Fin-R1"
+  model_path: ".Fin-R1"
   
   # 设备配置
   device: "cpu"  # 可选: "cpu", "cuda", "mps"
