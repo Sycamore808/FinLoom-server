@@ -1,23 +1,26 @@
 """
 报告生成器模块
-负责生成各类投资报告
+负责生成各类投资报告（默认输出JSON数据格式和SQLite数据库）
 """
 
 import json
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import markdown
 import numpy as np
 import pandas as pd
-import pdfkit
 from jinja2 import Environment, FileSystemLoader, Template
 
 from common.data_structures import Position, Signal
 from common.exceptions import QuantSystemError
 from common.logging_system import setup_logger
+
+from .database_manager import get_visualization_database_manager
+from .export_manager import ExportManager
 
 logger = setup_logger("report_builder")
 
@@ -27,12 +30,14 @@ class ReportConfig:
     """报告配置数据类"""
 
     report_type: str  # 'daily', 'weekly', 'monthly', 'performance', 'risk'
-    template_name: str
-    output_format: str  # 'html', 'pdf', 'markdown', 'json'
-    include_charts: bool = True
+    output_format: str = "json"  # 'json', 'csv', 'excel', 'sqlite' (默认JSON + SQLite)
+    output_path: Optional[str] = None  # 输出路径，如果为None则自动生成
+    save_to_database: bool = True  # 是否保存到SQLite数据库
+    include_charts: bool = False  # 是否包含图表（纯数据模式默认关闭）
     include_tables: bool = True
     include_summary: bool = True
     custom_sections: List[str] = field(default_factory=list)
+    template_name: Optional[str] = None  # HTML模板（仅当需要HTML时使用）
 
 
 @dataclass
@@ -69,29 +74,32 @@ class PerformanceMetrics:
 
 
 class ReportBuilder:
-    """报告生成器类"""
+    """报告生成器类 - 默认输出JSON数据和SQLite数据库"""
 
-    TEMPLATE_DIR = "module_11_visualization/templates"
-    OUTPUT_DIR = "module_11_visualization/reports"
+    OUTPUT_DIR = "module_11_visualization/reports"  # 数据文件输出目录
+    DATABASE_PATH = "data/module11_visualization.db"  # SQLite数据库路径
 
-    DEFAULT_TEMPLATES = {
-        "daily": "daily_report.html",
-        "weekly": "weekly_report.html",
-        "monthly": "monthly_report.html",
-        "performance": "performance_report.html",
-        "risk": "risk_report.html",
-    }
-
-    def __init__(self, template_dir: Optional[str] = None):
+    def __init__(self, output_dir: Optional[str] = None, db_path: Optional[str] = None):
         """初始化报告生成器
 
         Args:
-            template_dir: 模板目录
+            output_dir: 输出目录（默认为 module_11_visualization/reports/）
+            db_path: 数据库路径（默认为 data/module11_visualization.db）
         """
-        self.template_dir = template_dir or self.TEMPLATE_DIR
-        self.env = Environment(loader=FileSystemLoader(self.template_dir))
+        self.output_dir = Path(output_dir or self.OUTPUT_DIR)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        self.db_manager = get_visualization_database_manager(
+            db_path or self.DATABASE_PATH
+        )
+        self.export_manager = ExportManager(str(self.output_dir))
+
         self.sections: Dict[str, ReportSection] = {}
         self.metadata: Dict[str, Any] = {}
+
+        logger.info(f"报告生成器已初始化")
+        logger.info(f"  - 数据输出目录: {self.output_dir.absolute()}")
+        logger.info(f"  - SQLite数据库: {self.db_manager.db_path}")
 
     def generate_daily_report(
         self,
@@ -101,8 +109,8 @@ class ReportBuilder:
         signals: List[Signal],
         market_data: pd.DataFrame,
         config: Optional[ReportConfig] = None,
-    ) -> str:
-        """生成日报
+    ) -> Dict[str, Any]:
+        """生成日报（默认输出JSON数据并保存到SQLite）
 
         Args:
             date: 报告日期
@@ -113,14 +121,10 @@ class ReportBuilder:
             config: 报告配置
 
         Returns:
-            报告内容
+            包含报告数据和保存路径的字典
         """
         if config is None:
-            config = ReportConfig(
-                report_type="daily",
-                template_name="daily_report.html",
-                output_format="html",
-            )
+            config = ReportConfig(report_type="daily")
 
         # 清空之前的章节
         self.sections.clear()
@@ -132,24 +136,20 @@ class ReportBuilder:
             "report_type": "Daily Report",
         }
 
-        # 添加概要章节
-        if config.include_summary:
-            self._add_summary_section(portfolio_data, date)
+        # 收集报告数据（纯数据，不生成HTML）
+        report_data = {
+            "metadata": self.metadata,
+            "summary": self._collect_summary_data(portfolio_data, date)
+            if config.include_summary
+            else {},
+            "positions": self._collect_positions_data(positions),
+            "signals": self._collect_signals_data(signals, date),
+            "market_overview": self._collect_market_overview_data(market_data),
+            "performance": self._collect_performance_data(portfolio_data),
+        }
 
-        # 添加持仓章节
-        self._add_positions_section(positions)
-
-        # 添加交易信号章节
-        self._add_signals_section(signals, date)
-
-        # 添加市场概览章节
-        self._add_market_overview_section(market_data)
-
-        # 添加绩效章节
-        self._add_performance_section(portfolio_data)
-
-        # 生成报告
-        return self._render_report(config)
+        # 保存报告数据
+        return self._save_report_data(report_data, config)
 
     def generate_weekly_summary(
         self,
@@ -157,8 +157,8 @@ class ReportBuilder:
         end_date: datetime,
         weekly_data: Dict[str, Any],
         config: Optional[ReportConfig] = None,
-    ) -> str:
-        """生成周报
+    ) -> Dict[str, Any]:
+        """生成周报（默认输出JSON数据并保存到SQLite）
 
         Args:
             start_date: 开始日期
@@ -167,14 +167,10 @@ class ReportBuilder:
             config: 报告配置
 
         Returns:
-            报告内容
+            包含报告数据和保存路径的字典
         """
         if config is None:
-            config = ReportConfig(
-                report_type="weekly",
-                template_name="weekly_report.html",
-                output_format="html",
-            )
+            config = ReportConfig(report_type="weekly")
 
         self.sections.clear()
 
@@ -184,50 +180,24 @@ class ReportBuilder:
             "report_type": "Weekly Summary",
         }
 
-        # 添加周概要
-        self._add_section(
-            ReportSection(
-                section_id="weekly_overview",
-                title="Weekly Overview",
-                content_type="text",
-                content=self._format_weekly_overview(weekly_data),
-                order=1,
-            )
-        )
+        # 收集周报数据
+        report_data = {
+            "metadata": self.metadata,
+            "weekly_overview": weekly_data.get("overview", {}),
+            "weekly_performance": weekly_data.get("performance", {}),
+            "trade_statistics": weekly_data.get("trades", []),
+        }
 
-        # 添加周绩效
-        if "performance" in weekly_data:
-            self._add_section(
-                ReportSection(
-                    section_id="weekly_performance",
-                    title="Weekly Performance",
-                    content_type="table",
-                    content=self._format_performance_table(weekly_data["performance"]),
-                    order=2,
-                )
-            )
-
-        # 添加交易统计
-        if "trades" in weekly_data:
-            self._add_section(
-                ReportSection(
-                    section_id="trade_statistics",
-                    title="Trade Statistics",
-                    content_type="table",
-                    content=self._format_trade_statistics(weekly_data["trades"]),
-                    order=3,
-                )
-            )
-
-        return self._render_report(config)
+        # 保存报告数据
+        return self._save_report_data(report_data, config)
 
     def generate_performance_report(
         self,
         performance_data: Dict[str, Any],
         metrics: PerformanceMetrics,
         config: Optional[ReportConfig] = None,
-    ) -> str:
-        """生成绩效报告
+    ) -> Dict[str, Any]:
+        """生成绩效报告（默认输出JSON数据并保存到SQLite）
 
         Args:
             performance_data: 绩效数据
@@ -235,14 +205,10 @@ class ReportBuilder:
             config: 报告配置
 
         Returns:
-            报告内容
+            包含报告数据和保存路径的字典
         """
         if config is None:
-            config = ReportConfig(
-                report_type="performance",
-                template_name="performance_report.html",
-                output_format="html",
-            )
+            config = ReportConfig(report_type="performance")
 
         self.sections.clear()
 
@@ -251,51 +217,25 @@ class ReportBuilder:
             "report_type": "Performance Analysis Report",
         }
 
-        # 添加绩效概要
-        self._add_section(
-            ReportSection(
-                section_id="performance_summary",
-                title="Performance Summary",
-                content_type="metric",
-                content=self._format_metrics(metrics),
-                order=1,
-            )
-        )
+        # 收集绩效报告数据
+        report_data = {
+            "metadata": self.metadata,
+            "performance_summary": self._collect_metrics_data(metrics),
+            "return_analysis": performance_data.get("returns", {}),
+            "risk_analysis": performance_data.get("risk", {}),
+            "trade_analysis": {
+                "avg_win": metrics.avg_win,
+                "avg_loss": metrics.avg_loss,
+                "best_trade": metrics.best_trade,
+                "worst_trade": metrics.worst_trade,
+                "win_loss_ratio": metrics.avg_win / abs(metrics.avg_loss)
+                if metrics.avg_loss != 0
+                else 0,
+            },
+        }
 
-        # 添加收益分析
-        self._add_section(
-            ReportSection(
-                section_id="return_analysis",
-                title="Return Analysis",
-                content_type="table",
-                content=self._format_return_analysis(performance_data),
-                order=2,
-            )
-        )
-
-        # 添加风险分析
-        self._add_section(
-            ReportSection(
-                section_id="risk_analysis",
-                title="Risk Analysis",
-                content_type="table",
-                content=self._format_risk_analysis(performance_data),
-                order=3,
-            )
-        )
-
-        # 添加交易分析
-        self._add_section(
-            ReportSection(
-                section_id="trade_analysis",
-                title="Trade Analysis",
-                content_type="table",
-                content=self._format_trade_analysis(metrics),
-                order=4,
-            )
-        )
-
-        return self._render_report(config)
+        # 保存报告数据
+        return self._save_report_data(report_data, config)
 
     def create_custom_report(
         self, title: str, sections: List[ReportSection], config: ReportConfig
@@ -324,7 +264,7 @@ class ReportBuilder:
         return self._render_report(config)
 
     def export_to_pdf(self, html_content: str, output_path: str) -> bool:
-        """导出为PDF
+        """导出为PDF（功能已移除，改为导出HTML）
 
         Args:
             html_content: HTML内容
@@ -334,23 +274,15 @@ class ReportBuilder:
             是否成功
         """
         try:
-            options = {
-                "page-size": "A4",
-                "margin-top": "0.75in",
-                "margin-right": "0.75in",
-                "margin-bottom": "0.75in",
-                "margin-left": "0.75in",
-                "encoding": "UTF-8",
-                "no-outline": None,
-                "enable-local-file-access": None,
-            }
-
-            pdfkit.from_string(html_content, output_path, options=options)
-            logger.info(f"Report exported to PDF: {output_path}")
+            # PDF功能已移除，改为保存HTML
+            html_path = output_path.replace(".pdf", ".html")
+            with open(html_path, "w", encoding="utf-8") as f:
+                f.write(html_content)
+            logger.info(f"Report exported to HTML: {html_path}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to export PDF: {e}")
+            logger.error(f"Failed to export HTML: {e}")
             return False
 
     def export_to_markdown(self, content: Dict[str, Any], output_path: str) -> bool:
@@ -396,13 +328,310 @@ class ReportBuilder:
         logger.info(f"Scheduled {report_type} report delivery: {schedule}")
         return True
 
-    def _add_section(self, section: ReportSection) -> None:
-        """添加报告章节
+    # ==================== 数据收集方法 ====================
+
+    def _collect_summary_data(
+        self, portfolio_data: Dict[str, Any], date: datetime
+    ) -> Dict[str, Any]:
+        """收集概要数据
 
         Args:
-            section: 章节对象
+            portfolio_data: 组合数据
+            date: 日期
+
+        Returns:
+            概要数据字典
         """
-        self.sections[section.section_id] = section
+        return {
+            "date": date.strftime("%Y-%m-%d"),
+            "total_value": portfolio_data.get("total_value", 0),
+            "daily_pnl": portfolio_data.get("daily_pnl", 0),
+            "daily_return": portfolio_data.get("daily_return", 0),
+            "ytd_return": portfolio_data.get("ytd_return", 0),
+        }
+
+    def _collect_positions_data(
+        self, positions: List[Position]
+    ) -> List[Dict[str, Any]]:
+        """收集持仓数据
+
+        Args:
+            positions: 持仓列表
+
+        Returns:
+            持仓数据列表
+        """
+        if not positions:
+            return []
+
+        positions_data = []
+        for pos in positions:
+            positions_data.append(
+                {
+                    "symbol": pos.symbol,
+                    "quantity": pos.quantity,
+                    "avg_cost": pos.avg_cost,
+                    "current_price": pos.current_price,
+                    "market_value": pos.market_value,
+                    "unrealized_pnl": pos.unrealized_pnl,
+                    "return_pct": pos.return_pct,
+                }
+            )
+        return positions_data
+
+    def _collect_signals_data(
+        self, signals: List[Signal], date: datetime
+    ) -> List[Dict[str, Any]]:
+        """收集交易信号数据
+
+        Args:
+            signals: 信号列表
+            date: 日期
+
+        Returns:
+            信号数据列表
+        """
+        # 筛选当日信号
+        today_signals = [s for s in signals if s.timestamp.date() == date.date()]
+
+        if not today_signals:
+            return []
+
+        signals_data = []
+        for signal in today_signals:
+            signals_data.append(
+                {
+                    "timestamp": signal.timestamp.isoformat(),
+                    "symbol": signal.symbol,
+                    "action": signal.action,
+                    "quantity": signal.quantity,
+                    "price": signal.price,
+                    "confidence": signal.confidence,
+                    "strategy_name": signal.strategy_name,
+                }
+            )
+        return signals_data
+
+    def _collect_market_overview_data(
+        self, market_data: pd.DataFrame
+    ) -> Dict[str, Any]:
+        """收集市场概览数据
+
+        Args:
+            market_data: 市场数据
+
+        Returns:
+            市场概览数据字典
+        """
+        if market_data.empty:
+            return {}
+
+        return {
+            "market_trend": self._determine_market_trend(market_data),
+            "volatility": float(market_data["close"].pct_change().std() * np.sqrt(252)),
+            "top_gainer": self._find_top_mover(market_data, "gainer"),
+            "top_loser": self._find_top_mover(market_data, "loser"),
+            "trading_volume": int(market_data["volume"].sum())
+            if "volume" in market_data.columns
+            else 0,
+        }
+
+    def _collect_performance_data(
+        self, portfolio_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """收集绩效数据
+
+        Args:
+            portfolio_data: 组合数据
+
+        Returns:
+            绩效数据字典
+        """
+        return {
+            "sharpe_ratio": portfolio_data.get("sharpe_ratio", 0),
+            "max_drawdown": portfolio_data.get("max_drawdown", 0),
+            "win_rate": portfolio_data.get("win_rate", 0),
+            "profit_factor": portfolio_data.get("profit_factor", 0),
+        }
+
+    def _collect_metrics_data(self, metrics: PerformanceMetrics) -> Dict[str, Any]:
+        """收集绩效指标数据
+
+        Args:
+            metrics: 绩效指标
+
+        Returns:
+            绩效指标数据字典
+        """
+        return {
+            "total_return": metrics.total_return,
+            "annualized_return": metrics.annualized_return,
+            "volatility": metrics.volatility,
+            "sharpe_ratio": metrics.sharpe_ratio,
+            "sortino_ratio": metrics.sortino_ratio,
+            "max_drawdown": metrics.max_drawdown,
+            "win_rate": metrics.win_rate,
+            "profit_factor": metrics.profit_factor,
+            "total_trades": metrics.total_trades,
+            "winning_trades": metrics.winning_trades,
+            "losing_trades": metrics.losing_trades,
+        }
+
+    # ==================== 报告保存方法 ====================
+
+    def _save_report_data(
+        self, report_data: Dict[str, Any], config: ReportConfig
+    ) -> Dict[str, Any]:
+        """保存报告数据到文件和数据库
+
+        Args:
+            report_data: 报告数据
+            config: 报告配置
+
+        Returns:
+            保存结果字典（包含文件路径和数据库状态）
+        """
+        result = {
+            "success": True,
+            "report_data": report_data,
+            "saved_to": [],
+            "errors": [],
+        }
+
+        # 生成报告ID和文件名
+        report_id = f"{config.report_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        report_date_str = report_data.get("metadata", {}).get(
+            "report_date", datetime.now().strftime("%Y-%m-%d")
+        )
+
+        # 1. 保存到SQLite数据库
+        if config.save_to_database:
+            try:
+                success = self.db_manager.save_report(
+                    report_id=report_id,
+                    report_type=config.report_type,
+                    title=report_data.get("metadata", {}).get("report_type", "Report"),
+                    report_date=datetime.strptime(
+                        report_date_str.split()[0], "%Y-%m-%d"
+                    )
+                    if isinstance(report_date_str, str)
+                    else datetime.now(),
+                    content_html="",  # 不保存HTML
+                    content_json=report_data,
+                    metadata=report_data.get("metadata", {}),
+                )
+
+                if success:
+                    result["saved_to"].append(
+                        f"SQLite数据库: {self.db_manager.db_path}"
+                    )
+                    result["database_report_id"] = report_id
+                    logger.info(f"✓ 报告已保存到数据库: {report_id}")
+                else:
+                    result["errors"].append("数据库保存失败")
+
+            except Exception as e:
+                logger.error(f"保存到数据库失败: {e}")
+                result["errors"].append(f"数据库保存失败: {e}")
+
+        # 2. 保存到文件（JSON/CSV/Excel）
+        if config.output_format and config.output_format != "sqlite":
+            try:
+                # 确定输出路径
+                if config.output_path:
+                    output_path = Path(config.output_path)
+                else:
+                    filename = f"{config.report_type}_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{config.output_format}"
+                    output_path = self.output_dir / filename
+
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # 根据格式保存
+                if config.output_format == "json":
+                    with open(output_path, "w", encoding="utf-8") as f:
+                        json.dump(
+                            report_data, f, indent=2, ensure_ascii=False, default=str
+                        )
+                    result["saved_to"].append(f"JSON文件: {output_path.absolute()}")
+                    result["file_path"] = str(output_path.absolute())
+                    logger.info(f"✓ 报告已保存到JSON文件: {output_path.absolute()}")
+
+                elif config.output_format == "csv":
+                    # 将报告数据转换为DataFrame并保存为CSV
+                    df = self._report_data_to_dataframe(report_data)
+                    df.to_csv(output_path, index=False, encoding="utf-8")
+                    result["saved_to"].append(f"CSV文件: {output_path.absolute()}")
+                    result["file_path"] = str(output_path.absolute())
+                    logger.info(f"✓ 报告已保存到CSV文件: {output_path.absolute()}")
+
+                elif config.output_format == "excel":
+                    # 将报告数据转换为多个sheet的Excel文件
+                    with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+                        for section_name, section_data in report_data.items():
+                            if section_name != "metadata" and section_data:
+                                df = (
+                                    pd.DataFrame([section_data])
+                                    if isinstance(section_data, dict)
+                                    else pd.DataFrame(section_data)
+                                )
+                                df.to_excel(
+                                    writer, sheet_name=section_name[:31], index=False
+                                )  # Excel sheet name limit
+                    result["saved_to"].append(f"Excel文件: {output_path.absolute()}")
+                    result["file_path"] = str(output_path.absolute())
+                    logger.info(f"✓ 报告已保存到Excel文件: {output_path.absolute()}")
+
+            except Exception as e:
+                logger.error(f"保存到文件失败: {e}")
+                result["errors"].append(f"文件保存失败: {e}")
+                result["success"] = False
+
+        # 输出总结日志
+        if result["saved_to"]:
+            logger.info(f"=" * 60)
+            logger.info(f"报告生成完成！")
+            logger.info(f"报告ID: {report_id}")
+            logger.info(f"报告类型: {config.report_type}")
+            for location in result["saved_to"]:
+                logger.info(f"  ✓ {location}")
+            logger.info(f"=" * 60)
+
+        if result["errors"]:
+            logger.warning(f"保存过程中出现错误: {result['errors']}")
+
+        return result
+
+    def _report_data_to_dataframe(self, report_data: Dict[str, Any]) -> pd.DataFrame:
+        """将报告数据转换为DataFrame
+
+        Args:
+            report_data: 报告数据
+
+        Returns:
+            DataFrame
+        """
+        # 扁平化报告数据
+        flat_data = []
+        for section_name, section_data in report_data.items():
+            if isinstance(section_data, dict):
+                for key, value in section_data.items():
+                    flat_data.append(
+                        {"section": section_name, "field": key, "value": value}
+                    )
+            elif isinstance(section_data, list):
+                for idx, item in enumerate(section_data):
+                    if isinstance(item, dict):
+                        for key, value in item.items():
+                            flat_data.append(
+                                {
+                                    "section": section_name,
+                                    "index": idx,
+                                    "field": key,
+                                    "value": value,
+                                }
+                            )
+
+        return pd.DataFrame(flat_data)
 
     def _add_summary_section(
         self, portfolio_data: Dict[str, Any], date: datetime
@@ -790,65 +1019,88 @@ class ReportBuilder:
 
 
 # 模块级别函数
-def generate_quick_report(data: Dict[str, Any], report_type: str = "daily") -> str:
-    """快速生成报告
+def generate_quick_report(
+    data: Dict[str, Any], report_type: str = "daily", output_format: str = "json"
+) -> Dict[str, Any]:
+    """快速生成报告（默认输出JSON数据并保存到SQLite）
 
     Args:
         data: 报告数据
         report_type: 报告类型
+        output_format: 输出格式（json/csv/excel）
 
     Returns:
-        报告内容
+        包含报告数据和保存信息的字典
     """
     builder = ReportBuilder()
     config = ReportConfig(
         report_type=report_type,
-        template_name=ReportBuilder.DEFAULT_TEMPLATES.get(
-            report_type, "daily_report.html"
-        ),
-        output_format="html",
+        output_format=output_format,
     )
 
-    sections = []
-    for idx, (key, value) in enumerate(data.items()):
-        sections.append(
-            ReportSection(
-                section_id=key,
-                title=key.replace("_", " ").title(),
-                content_type="text" if isinstance(value, str) else "metric",
-                content=value,
-                order=idx,
-            )
-        )
+    report_data = {
+        "metadata": {
+            "report_type": report_type,
+            "generation_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        },
+        **data,
+    }
 
-    return builder.create_custom_report("Quick Report", sections, config)
+    return builder._save_report_data(report_data, config)
 
 
-def export_report(report_content: str, filename: str, format: str = "html") -> bool:
-    """导出报告
+def export_report_data(
+    report_data: Dict[str, Any], filename: str, format: str = "json"
+) -> bool:
+    """导出报告数据到文件
 
     Args:
-        report_content: 报告内容
+        report_data: 报告数据字典
         filename: 文件名
-        format: 格式
+        format: 格式（json/csv/excel）
 
     Returns:
         是否成功
     """
     try:
-        if format == "html":
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write(report_content)
-        elif format == "pdf":
-            builder = ReportBuilder()
-            return builder.export_to_pdf(report_content, filename)
+        output_path = Path(filename)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if format == "json":
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(report_data, f, indent=2, ensure_ascii=False, default=str)
+        elif format == "csv":
+            # 扁平化数据并保存为CSV
+            flat_data = []
+            for section, content in report_data.items():
+                if isinstance(content, dict):
+                    for key, value in content.items():
+                        flat_data.append(
+                            {"section": section, "field": key, "value": value}
+                        )
+                elif isinstance(content, list):
+                    for item in content:
+                        if isinstance(item, dict):
+                            flat_data.append({"section": section, **item})
+            df = pd.DataFrame(flat_data)
+            df.to_csv(output_path, index=False, encoding="utf-8")
+        elif format == "excel":
+            with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+                for section, content in report_data.items():
+                    if content:
+                        df = (
+                            pd.DataFrame([content])
+                            if isinstance(content, dict)
+                            else pd.DataFrame(content)
+                        )
+                        df.to_excel(writer, sheet_name=section[:31], index=False)
         else:
-            logger.warning(f"Unsupported format: {format}")
+            logger.warning(f"不支持的格式: {format}")
             return False
 
-        logger.info(f"Report exported to {filename}")
+        logger.info(f"报告已导出到: {output_path.absolute()}")
         return True
 
     except Exception as e:
-        logger.error(f"Failed to export report: {e}")
+        logger.error(f"导出报告失败: {e}")
         return False

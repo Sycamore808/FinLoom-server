@@ -13,10 +13,10 @@ from typing import Any, Dict, List, Optional, Union
 import jinja2
 import markdown
 import yaml
+from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
+
 from common.exceptions import QuantSystemError
 from common.logging_system import setup_logger
-from jinja2 import Environment, FileSystemLoader, Template, select_autoescape
-from weasyprint import CSS, HTML
 
 logger = setup_logger("template_engine")
 
@@ -511,43 +511,16 @@ class TemplateEngine:
         return h.handle(html_content)
 
     def _html_to_pdf(self, html_content: str) -> bytes:
-        """HTML转PDF
+        """HTML转PDF（功能已移除，仅返回HTML字节）
 
         Args:
             html_content: HTML内容
 
         Returns:
-            PDF字节数据
+            HTML内容的字节数据
         """
-        # 添加CSS样式
-        css = CSS(
-            string="""
-            @page {
-                size: A4;
-                margin: 1cm;
-            }
-            body {
-                font-family: Arial, sans-serif;
-                font-size: 12pt;
-            }
-            table {
-                border-collapse: collapse;
-                width: 100%;
-            }
-            th, td {
-                border: 1px solid #ddd;
-                padding: 8px;
-                text-align: left;
-            }
-            th {
-                background-color: #f2f2f2;
-            }
-        """
-        )
-
-        # 生成PDF
-        pdf = HTML(string=html_content).write_pdf(stylesheets=[css])
-        return pdf
+        logger.warning("PDF导出功能已移除，返回HTML内容")
+        return html_content.encode("utf-8")
 
 
 # 模块级别函数

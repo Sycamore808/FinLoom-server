@@ -21,10 +21,11 @@ from bokeh.layouts import column, gridplot, row
 from bokeh.models import ColumnDataSource, HoverTool, Range1d
 from bokeh.palettes import Category20
 from bokeh.plotting import figure, output_file, save
+from plotly.subplots import make_subplots
+
 from common.data_structures import MarketData, Position, Signal
 from common.exceptions import QuantSystemError
 from common.logging_system import setup_logger
-from plotly.subplots import make_subplots
 
 logger = setup_logger("interactive_visualizer")
 
@@ -192,12 +193,6 @@ class InteractiveVisualizer:
             name="OHLC",
             increasing_line_color="#00CC96",
             decreasing_line_color="#EF553B",
-            hovertemplate="Date: %{x}<br>"
-            + "Open: %{open:.2f}<br>"
-            + "High: %{high:.2f}<br>"
-            + "Low: %{low:.2f}<br>"
-            + "Close: %{close:.2f}<br>"
-            + "<extra></extra>",
         )
         fig.add_trace(candlestick, row=1, col=1)
 
@@ -223,7 +218,6 @@ class InteractiveVisualizer:
                 name="Volume",
                 marker_color=colors,
                 showlegend=False,
-                hovertemplate="Date: %{x}<br>Volume: %{y:,.0f}<extra></extra>",
             )
             fig.add_trace(volume_bar, row=current_row, col=1)
             current_row += 1
