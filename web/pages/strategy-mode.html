@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>策略制定 - FinLoom</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%);
+            min-height: 100vh;
+        }
+
+        /* 顶部导航 */
+        .strategy-navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            z-index: 1000;
+            height: 80px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .nav-container {
+            height: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .btn-back {
+            background: none;
+            border: none;
+            color: #475569;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-back:hover {
+            background: #f1f5f9;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .nav-brand i {
+            color: #ec4899;
+            font-size: 1.5rem;
+        }
+
+        /* 进度条 */
+        .progress-steps {
+            display: flex;
+            align-items: center;
+            gap: 0;
+        }
+
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            opacity: 0.4;
+            transition: all 0.3s;
+        }
+
+        .step.active {
+            opacity: 1;
+        }
+
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .step.active .step-number {
+            background: linear-gradient(135deg, #ec4899, #8b5cf6);
+            color: white;
+        }
+
+        .step-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #64748b;
+            white-space: nowrap;
+        }
+
+        .step.active .step-label {
+            color: #0f172a;
+        }
+
+        .step-line {
+            width: 60px;
+            height: 2px;
+            background: #e2e8f0;
+            margin: 0 -5px;
+        }
+
+        .btn-save {
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #ec4899, #8b5cf6);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3);
+        }
+
+        /* 主内容 */
+        .strategy-container {
+            padding-top: 100px;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding-left: 2rem;
+            padding-right: 2rem;
+            padding-bottom: 3rem;
+        }
+
+        .step-content {
+            display: none;
+        }
+
+        .step-content.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .step-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .step-header h2 {
+            font-size: 2.5rem;
+            font-weight: 900;
+            color: #0f172a;
+            margin-bottom: 1rem;
+        }
+
+        .step-header p {
+            font-size: 1.1rem;
+            color: #64748b;
+        }
+
+        /* 表单网格 */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .form-section {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid #e2e8f0;
+        }
+
+        .form-section h3 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .form-section h3 i {
+            color: #ec4899;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #475569;
+            font-size: 0.95rem;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #ec4899;
+            box-shadow: 0 0 0 4px rgba(236, 72, 153, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .textarea-hint {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(139, 92, 246, 0.05));
+            border-radius: 8px;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        .textarea-hint i {
+            color: #3b82f6;
+            font-size: 1rem;
+        }
+
+        /* 风险选择器 */
+        .risk-selector {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .risk-option {
+            padding: 1.5rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .risk-option:hover {
+            border-color: #ec4899;
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(236, 72, 153, 0.15);
+        }
+
+        .risk-option.active {
+            border-color: #ec4899;
+            background: linear-gradient(135deg, rgba(236, 72, 153, 0.1), rgba(139, 92, 246, 0.1));
+        }
+
+        .risk-icon {
+            font-size: 2rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .risk-name {
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 0.5rem;
+        }
+
+        .risk-desc {
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+
+        /* 标签选择器 */
+        .tag-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .tag-item {
+            padding: 0.5rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tag-item:hover {
+            border-color: #ec4899;
+            color: #ec4899;
+        }
+
+        .tag-item.active {
+            background: linear-gradient(135deg, #ec4899, #8b5cf6);
+            color: white;
+            border-color: transparent;
+        }
+
+        /* 按钮组 */
+        .step-actions {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 3rem;
+        }
+
+        .btn-next,
+        .btn-prev {
+            padding: 1rem 3rem;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.3s;
+        }
+
+        .btn-next {
+            background: linear-gradient(135deg, #ec4899, #8b5cf6);
+            color: white;
+            box-shadow: 0 4px 15px rgba(236, 72, 153, 0.3);
+        }
+
+        .btn-next:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(236, 72, 153, 0.4);
+        }
+
+        .btn-prev {
+            background: white;
+            color: #64748b;
+            border: 2px solid #e2e8f0;
+        }
+
+        .btn-prev:hover {
+            border-color: #ec4899;
+            color: #ec4899;
+        }
+
+        /* 生成状态 */
+        .generation-status {
+            text-align: center;
+            padding: 4rem 2rem;
+        }
+
+        .status-icon {
+            font-size: 4rem;
+            color: #ec4899;
+            margin-bottom: 2rem;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.1);
+                opacity: 0.8;
+            }
+        }
+
+        .generation-status h3 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 2rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            max-width: 500px;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            margin: 0 auto 1.5rem;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ec4899, #8b5cf6);
+            border-radius: 10px;
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        .status-text {
+            color: #64748b;
+            font-size: 1.1rem;
+        }
+
+        /* 策略结果 */
+        .strategy-result {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .strategy-card {
+            background: white;
+            border-radius: 20px;
+            padding: 2.5rem;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .strategy-info h4 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 1rem;
+        }
+
+        .strategy-info p {
+            font-size: 1.1rem;
+            color: #64748b;
+            line-height: 1.8;
+        }
+
+        /* 响应式 */
+        @media (max-width: 1024px) {
+            .progress-steps {
+                display: none;
+            }
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-container {
+                padding: 0 1rem;
+            }
+            .step-header h2 {
+                font-size: 2rem;
+            }
+            .risk-selector {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航 -->
+    <nav class="strategy-navbar">
+        <div class="nav-container">
+            <div class="nav-left">
+                <button class="btn-back" onclick="window.location.href='/index_upgraded.html'">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>返回仪表板</span>
+                </button>
+                <div class="nav-brand">
+                    <i class="fas fa-chart-line"></i>
+                    <span>策略制定</span>
+                </div>
+            </div>
+                <div class="progress-steps">
+                    <div class="step active" data-step="1">
+                        <div class="step-number">1</div>
+                        <div class="step-label">需求分析</div>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step" data-step="2">
+                        <div class="step-number">2</div>
+                        <div class="step-label">策略生成</div>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step" data-step="3">
+                        <div class="step-number">3</div>
+                        <div class="step-label">回测优化</div>
+                    </div>
+                    <div class="step-line"></div>
+                    <div class="step" data-step="4">
+                        <div class="step-number">4</div>
+                        <div class="step-label">代码生成</div>
+                </div>
+            </div>
+            <div class="nav-right">
+                <button class="btn-save">
+                    <i class="fas fa-save"></i>
+                    <span>保存</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容区域 -->
+    <div class="strategy-container">
+        <!-- 步骤1: 需求分析 -->
+        <div class="step-content active" id="step1">
+                <div class="step-header">
+                    <h2>投资需求分析</h2>
+                    <p>请告诉我们您的投资目标和偏好，我们将为您量身定制策略</p>
+                </div>
+
+                <div class="form-grid">
+                    <!-- 投资目标 -->
+                    <div class="form-section">
+                        <h3><i class="fas fa-bullseye"></i> 投资目标</h3>
+                        <div class="input-group">
+                            <label>收益目标 (%/年)</label>
+                            <input type="number" id="targetReturn" placeholder="例如: 15" value="15">
+                        </div>
+                        <div class="input-group">
+                            <label>投资期限</label>
+                            <select id="investmentPeriod">
+                                <option value="short">短期 (1-3个月)</option>
+                                <option value="medium" selected>中期 (3-12个月)</option>
+                                <option value="long">长期 (1年以上)</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>初始资金 (万元)</label>
+                            <input type="number" id="initialCapital" placeholder="例如: 100" value="100">
+                        </div>
+                    </div>
+
+                    <!-- 风险偏好 -->
+                    <div class="form-section">
+                        <h3><i class="fas fa-shield-alt"></i> 风险偏好</h3>
+                        <div class="risk-selector">
+                            <div class="risk-option" data-risk="conservative">
+                            <div class="risk-icon">保</div>
+                                <div class="risk-name">保守型</div>
+                                <div class="risk-desc">低风险，稳健收益</div>
+                            </div>
+                            <div class="risk-option active" data-risk="moderate">
+                            <div class="risk-icon">稳</div>
+                                <div class="risk-name">稳健型</div>
+                                <div class="risk-desc">均衡风险与收益</div>
+                            </div>
+                            <div class="risk-option" data-risk="aggressive">
+                            <div class="risk-icon">进</div>
+                                <div class="risk-name">进取型</div>
+                                <div class="risk-desc">追求高收益</div>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>最大回撤容忍度 (%)</label>
+                            <input type="number" id="maxDrawdown" placeholder="例如: 20" value="20">
+                        </div>
+                    </div>
+
+                    <!-- 市场偏好 -->
+                    <div class="form-section">
+                        <h3><i class="fas fa-globe-asia"></i> 市场与行业</h3>
+                        <div class="input-group">
+                            <label>偏好行业 (可多选)</label>
+                            <div class="tag-selector">
+                                <span class="tag-item active">科技</span>
+                                <span class="tag-item">金融</span>
+                                <span class="tag-item">医药</span>
+                                <span class="tag-item">消费</span>
+                                <span class="tag-item">能源</span>
+                                <span class="tag-item">制造</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 策略偏好 -->
+                    <div class="form-section">
+                        <h3><i class="fas fa-cogs"></i> 策略偏好</h3>
+                        <div class="input-group">
+                            <label>策略类型</label>
+                            <select id="strategyType">
+                                <option value="value">价值投资</option>
+                                <option value="growth">成长投资</option>
+                                <option value="momentum" selected>动量策略</option>
+                                <option value="mean_reversion">均值回归</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>交易频率</label>
+                            <select id="tradingFrequency">
+                                <option value="daily">日内交易</option>
+                                <option value="weekly">周级调仓</option>
+                                <option value="monthly" selected>月度调仓</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 补充需求 -->
+                    <div class="form-section">
+                        <h3><i class="fas fa-comment-dots"></i> 补充需求说明</h3>
+                        <div class="input-group">
+                            <label>您还有其他特殊需求吗？（可选）</label>
+                            <textarea id="additionalRequirements" rows="4" placeholder="例如：希望避开某些行业、关注特定市场事件、特殊的止损要求等..."></textarea>
+                            <div class="textarea-hint">
+                                <i class="fas fa-lightbulb"></i>
+                                <span>提供更详细的需求可以帮助AI生成更符合您期望的策略</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-actions">
+                    <button class="btn-next" onclick="nextStep()">
+                        <span>下一步：生成策略</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+            </div>
+        </div>
+
+        <!-- 步骤2: 策略生成 -->
+        <div class="step-content" id="step2">
+            <div class="step-header">
+                <h2>AI策略生成</h2>
+                <p>基于您的需求，我们正在为您生成个性化投资策略</p>
+            </div>
+
+            <div class="generation-status" id="generationStatus">
+                <div class="status-icon">
+                    <i class="fas fa-brain"></i>
+                </div>
+                <h3>AI正在分析您的需求...</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p class="status-text" id="statusText">正在处理市场数据...</p>
+            </div>
+
+            <!-- 策略结果将由JS动态生成 -->
+            <div id="strategyResult" style="display: none;"></div>
+
+            <div class="step-actions">
+                <button class="btn-prev" onclick="prevStep()">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>上一步</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 策略结果容器（需要JS动态填充） -->
+    <div id="strategyResult" style="display: none;"></div>
+
+    <!-- AUE3架构核心文件 -->
+    <script src="/web/js/core/aue3-core.js"></script>
+    <script src="/web/js/core/api-service.js"></script>
+    <script src="/web/js/shared/components.js"></script>
+    <script src="/web/js/strategy/strategy-mode.js"></script>
+</body>
+</html>
