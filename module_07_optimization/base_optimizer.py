@@ -14,6 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+
 from common.exceptions import QuantSystemError
 from common.logging_system import setup_logger
 
@@ -278,11 +279,11 @@ class BaseOptimizer(ABC):
         if self.maximize and self.best_value is not None:
             self.best_value = -self.best_value
 
-        # 创建结果
+        # 创建结果（注意：best_value可能是0.0，不能用or判断）
         result = OptimizationResult(
             optimization_id=self.optimization_id,
             best_parameters=self.best_parameters or {},
-            best_value=self.best_value or float("inf"),
+            best_value=self.best_value if self.best_value is not None else float("inf"),
             all_trials=self.trials,
             convergence_history=convergence_history,
             total_time_seconds=total_time,

@@ -14,10 +14,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from jinja2 import Environment, FileSystemLoader, Template
+
 from common.exceptions import ModelError
 from common.logging_system import setup_logger
-from jinja2 import Environment, FileSystemLoader, Template
-from weasyprint import HTML
 
 logger = setup_logger("report_generator")
 
@@ -37,7 +37,6 @@ class ReportType(Enum):
 class ReportFormat(Enum):
     """报告格式枚举"""
 
-    PDF = "pdf"
     HTML = "html"
     EXCEL = "excel"
     JSON = "json"
@@ -84,7 +83,11 @@ class ReportData:
 class ReportGenerator:
     """报告生成器类"""
 
-    def __init__(self, template_dir: str = "templates", output_dir: str = "reports"):
+    def __init__(
+        self,
+        template_dir: str = "templates",
+        output_dir: str = "module_06_monitoring_alerting/reports",
+    ):
         """初始化报告生成器
 
         Args:
@@ -120,9 +123,7 @@ class ReportGenerator:
             report_data.charts = self._generate_charts(report_data)
 
         # 根据格式生成报告
-        if config.format == ReportFormat.PDF:
-            file_path = self._generate_pdf_report(config, report_data)
-        elif config.format == ReportFormat.HTML:
+        if config.format == ReportFormat.HTML:
             file_path = self._generate_html_report(config, report_data)
         elif config.format == ReportFormat.EXCEL:
             file_path = self._generate_excel_report(config, report_data)
@@ -238,10 +239,17 @@ class ReportGenerator:
 
         # 年化指标
         days = (period_end - period_start).days
-        if days > 0:
-            metrics["annualized_return"] = (1 + metrics["total_return"]) ** (
-                365 / days
-            ) - 1
+        if days > 0 and abs(metrics["total_return"]) < 10:  # 防止溢出
+            try:
+                metrics["annualized_return"] = (1 + metrics["total_return"]) ** (
+                    365 / days
+                ) - 1
+            except (OverflowError, ValueError):
+                # 如果计算溢出，使用简化公式
+                metrics["annualized_return"] = metrics["total_return"] * (365 / days)
+        elif days > 0:
+            # 收益率过大时使用线性近似
+            metrics["annualized_return"] = metrics["total_return"] * (365 / days)
         else:
             metrics["annualized_return"] = 0
 
@@ -539,29 +547,6 @@ class ReportGenerator:
         )
 
         return fig.to_html(div_id="monthly_returns_heatmap", include_plotlyjs=False)
-
-    def _generate_pdf_report(
-        self, config: ReportConfig, report_data: ReportData
-    ) -> str:
-        """生成PDF报告
-
-        Args:
-            config: 报告配置
-            report_data: 报告数据
-
-        Returns:
-            文件路径
-        """
-        # 先生成HTML
-        html_content = self._generate_html_content(config, report_data)
-
-        # 转换为PDF
-        file_name = f"{report_data.report_id}.pdf"
-        file_path = os.path.join(self.output_dir, file_name)
-
-        HTML(string=html_content).write_pdf(file_path)
-
-        return file_path
 
     def _generate_html_report(
         self, config: ReportConfig, report_data: ReportData

@@ -2,7 +2,7 @@
 
 # FIN-R1模型配置
 fin_r1:
-  model_path: "models/fin_r1"
+  model_path: ".Fin-R1"
   device: "cpu"  # or "cuda" if GPU available
   batch_size: 32
   max_length: 512

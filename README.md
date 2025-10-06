@@ -26,70 +26,68 @@ FinLoom系统以 **FIN-R1 模型** 作为自然语言理解入口，支持用户
 11. **AI交互模块 (module_10_ai_interaction)** - 自然语言处理和需求解析
 12. **可视化模块 (module_11_visualization)** - 图表展示和报告生成
 
+每个模块的目录下都有各自的API调用文档，可供查阅。
+功能上，比如想使用市场分析功能，则调用`module4`；
+想进行投资策略生成和回测，可使用`ai_strategy_system/intelligent_strategy_ai.py`等。
+
 ## 技术栈
 
-- **Python**: 3.9+
-- **PyTorch**: 2.0+ (仅用于 FIN-R1 模型推理)
-- **DuckDB**: 本地数据分析
+- **Python**
+- **SQLite**: 本地数据存储
 - **Akshare**: 中国金融市场数据获取
-- **TA-Lib**: 技术分析指标计算
-- **Plotly**: 交互式图表展示
-- **FastAPI**: RESTful API服务
+- **FastAPI**: RESTful API服务，与前端交互
+- **Vue3**: 前端框架（正在完善）
 
-## 安装和使用
+## 运行
 
 运行系统
 
 ```bash
-python3 start_web_app.py
+python3 main.py
 ```
-
-### API访问
 
 系统启动后可通过以下端点访问:
 
-- `http://localhost:8000/` - API根路径
+- `http://localhost:8000/` - 系统网页
 - `http://localhost:8000/health` - 健康检查
 - `http://localhost:8000/api/v1/analyze` - 投资需求分析
 - `http://localhost:8000/docs` - api文档
 
-## 开发指南
+## 一些若有若无的示例
 
-请参考 `docs/developer_guide/项目规范.md` 了解详细的开发规范和模块间通信协议。
+### 1. AI智能策略系统（示例）
 
-## 使用示例（未经验证）
-
-### 1. API使用示例
+用自然语言描述需求，系统自动完成策略生成和回测：
 
 ```bash
-# 运行API使用示例
-python examples/api_usage_example.py
+cd ai_strategy_system
+python intelligent_strategy_ai.py "我想要稳健收益的策略"
 ```
 
-### 2. 数据收集示例
+系统自动：理解需求 → 市场分析 → 智能选股 → AI模型选择 → 策略生成 → 回测报告
+
+详见 `ai_strategy_system/使用说明.md`
+
+### 2. Web API服务
+
+启动FastAPI服务：
 
 ```bash
-# 运行数据收集示例
-python examples/data_collection_example.py
+python main.py
 ```
 
-### 3. 回测示例
+访问 `http://localhost:8000/docs` 查看API文档
+
+### 3. 模块测试
 
 ```bash
-# 运行回测示例
-python examples/backtest_example.py
+# 测试各模块功能
+python tests/module01_data_pipeline_test.py
+python tests/module03_ai_models_test.py
+python tests/module09_backtesting_test.py
 ```
 
-### 4. 投资需求分析API调用
-
-```bash
-# 使用curl测试API
-curl -X POST http://localhost:8000/api/v1/analyze \
-  -H "Content-Type: application/json" \
-  -d '{"text": "我想找一些高成长性的中小盘股票，风险承受能力中等，投资期限1-3年"}'
-```
-
-## 配置文件
+### 配置文件
 
 - `config/system_config.yaml` - 系统配置
 - `config/model_config.yaml` - 模型配置

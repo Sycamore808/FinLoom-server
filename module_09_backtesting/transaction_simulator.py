@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+
 from common.constants import DEFAULT_SLIPPAGE_BPS
 from common.exceptions import QuantSystemError
 from common.logging_system import setup_logger
@@ -618,16 +619,39 @@ class TransactionSimulator:
         if self.market_data is None:
             return
 
+        # 如果market_data是DataFrame,只使用close价格列
+        if isinstance(self.market_data, pd.DataFrame):
+            if "close" in self.market_data.columns:
+                close_prices = self.market_data["close"]
+                returns = close_prices.pct_change()
+                volatility = returns.std()
+                avg_price = close_prices.mean()
+
+                # 简化：使用单一symbol处理
+                symbol = "default"
+                self.liquidity_profiles[symbol] = pd.DataFrame(
+                    {"volatility": [volatility], "avg_price": [avg_price]}
+                )
+            return
+
+        # 原有逻辑（如果需要）
         for symbol in self.market_data.columns:
             if symbol == "timestamp":
                 continue
 
             # 计算日内波动率
-            returns = self.market_data[symbol].pct_change()
+            if "close" in self.market_data.columns:
+                returns = self.market_data["close"].pct_change()
+            else:
+                returns = self.market_data[symbol].pct_change()
             volatility = returns.std()
 
             # 估算流动性（简化模型）
-            avg_price = self.market_data[symbol].mean()
+            avg_price = (
+                self.market_data[symbol].mean()
+                if symbol in self.market_data.columns
+                else self.market_data["close"].mean()
+            )
 
             # 生成流动性分布（假设）
             liquidity_levels = []

@@ -275,6 +275,9 @@ models/
 *.h5
 *.hdf5
 
+# FIN-R1 模型目录（自动下载）
+.Fin-R1/
+
 # Logs
 logs/
 *.log
@@ -360,11 +363,6 @@ test_output/
 htmlcov/
 .pytest_cache/
 
-# Documentation build
-docs/_build/
-docs/build/
-site/
-
 # Package management
 pip-log.txt
 pip-delete-this-directory.txt
@@ -444,10 +442,6 @@ mlruns/
 *.h5.gz
 *.hdf5.gz
 
-# API documentation
-api_docs/
-swagger/
-
 # Deployment files
 deploy/
 deployment/
@@ -457,6 +451,17 @@ deployment/
 dashboards/
 grafana/
 prometheus/
+
+# Module-specific output directories
+module_06_monitoring_alerting/reports/
+module_07_optimization/optimization_workspace/
+module_09_backtesting/reports/
+module_11_visualization/reports/
+conversation_history/
+
+# Legacy output directories (deprecated)
+reports/
+optimization_workspace/
 
 # Alert configurations
 alerts/
@@ -477,3 +482,5 @@ chart_output/
 # Interactive visualizations
 interactive_charts/
 visualization_output/
+
+.qoder/

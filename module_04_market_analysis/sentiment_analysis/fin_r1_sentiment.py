@@ -32,7 +32,7 @@ from common.logging_system import setup_logger
 from ..storage_management.market_analysis_database import get_market_analysis_db
 
 # 添加FIN-R1模型路径
-FIN_R1_PATH = "/Users/victor/Desktop/25fininnov/Fin-R1"
+FIN_R1_PATH = ".Fin-R1"
 if os.path.exists(FIN_R1_PATH):
     sys.path.append(FIN_R1_PATH)
 

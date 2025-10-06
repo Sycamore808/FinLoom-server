@@ -306,40 +306,15 @@ class UnifiedBrokerInterface:
         Args:
             broker_type: 券商类型
             config: 券商配置
+
+        Note:
+            当前版本不涉及真实券商连接，此方法预留用于未来扩展。
+            实际交易执行请使用 ExecutionInterface。
         """
-        # 动态导入对应的券商适配器
-        if broker_type == BrokerType.INTERACTIVE_BROKERS:
-            from module_08_execution.broker_adapters.interactive_brokers import (
-                IBConnector,
-            )
-
-            connector = IBConnector(config)
-        elif broker_type == BrokerType.BINANCE:
-            from module_08_execution.broker_adapters.binance_adapter import (
-                BinanceConnector,
-            )
-
-            connector = BinanceConnector(config)
-        elif broker_type == BrokerType.ALPACA:
-            from module_08_execution.broker_adapters.alpaca_adapter import (
-                AlpacaConnector,
-            )
-
-            connector = AlpacaConnector(config)
-        else:
-            from module_08_execution.broker_adapters.mock_broker import (
-                MockBrokerConnector,
-            )
-
-            connector = MockBrokerConnector(config)
-
-        self.brokers[broker_type] = connector
-
-        # 如果是第一个券商，设为活跃券商
-        if self.active_broker is None:
-            self.active_broker = connector
-
-        logger.info(f"Added broker: {broker_type}")
+        raise NotImplementedError(
+            "Broker connection not implemented. "
+            "Use ExecutionInterface for order execution."
+        )
 
     def connect_all(self) -> Dict[BrokerType, bool]:
         """连接所有券商

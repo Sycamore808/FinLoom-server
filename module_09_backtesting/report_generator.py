@@ -17,8 +17,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import seaborn as sns
-from common.constants import TRADING_DAYS_PER_YEAR
-from common.logging_system import setup_logger
 from jinja2 import Template
 from matplotlib.backends.backend_pdf import PdfPages
 from plotly.subplots import make_subplots
@@ -36,6 +34,10 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
+from scipy import stats
+
+from common.constants import TRADING_DAYS_PER_YEAR
+from common.logging_system import setup_logger
 
 logger = setup_logger("report_generator")
 
@@ -52,7 +54,7 @@ class ReportConfig:
     chart_theme: str = "plotly_white"
     language: str = "en"  # 'en' or 'zh'
     formats: List[str] = field(default_factory=lambda: ["html", "pdf", "excel"])
-    output_dir: str = "./reports"
+    output_dir: str = "module_09_backtesting/reports"
     timestamp: datetime = field(default_factory=datetime.now)
 
     def __post_init__(self):
@@ -178,13 +180,15 @@ class BacktestReportGenerator:
         """
         # 关键指标汇总
         summary_data = {
-            "Total Return": f"{backtest_result.performance_metrics.get('total_return', 0) * 100:.2f}%",
-            "Annual Return": f"{backtest_result.performance_metrics.get('annual_return', 0) * 100:.2f}%",
-            "Sharpe Ratio": f"{backtest_result.performance_metrics.get('sharpe_ratio', 0):.2f}",
-            "Max Drawdown": f"{backtest_result.risk_metrics.get('max_drawdown', 0) * 100:.2f}%",
-            "Total Trades": backtest_result.performance_metrics.get("total_trades", 0),
-            "Win Rate": f"{backtest_result.performance_metrics.get('win_rate', 0) * 100:.2f}%",
-            "Final Equity": f"${backtest_result.performance_metrics.get('final_equity', 0):,.2f}",
+            "Total Return": f"{backtest_result.performance_metrics.get('total_return', backtest_result.total_return) * 100:.2f}%",
+            "Annual Return": f"{backtest_result.performance_metrics.get('annual_return', backtest_result.annualized_return) * 100:.2f}%",
+            "Sharpe Ratio": f"{backtest_result.performance_metrics.get('sharpe_ratio', backtest_result.sharpe_ratio):.2f}",
+            "Max Drawdown": f"{backtest_result.performance_metrics.get('max_drawdown', backtest_result.max_drawdown) * 100:.2f}%",
+            "Total Trades": backtest_result.performance_metrics.get(
+                "total_trades", backtest_result.total_trades
+            ),
+            "Win Rate": f"{backtest_result.performance_metrics.get('win_rate', backtest_result.win_rate) * 100:.2f}%",
+            "Final Equity": f"${backtest_result.performance_metrics.get('final_equity', backtest_result.final_capital):,.2f}",
         }
 
         summary_df = pd.DataFrame.from_dict(
@@ -306,7 +310,12 @@ class BacktestReportGenerator:
         self.figures.append(drawdown_fig)
 
         # 风险指标表
-        risk_table = self._create_risk_table(backtest_result.risk_metrics)
+        risk_metrics_dict = {
+            "max_drawdown": backtest_result.max_drawdown,
+            "volatility": backtest_result.volatility,
+            "sharpe_ratio": backtest_result.sharpe_ratio,
+        }
+        risk_table = self._create_risk_table(risk_metrics_dict)
         section.subsections.append(
             ReportSection(
                 title="Risk Metrics", content=risk_table, section_type="table"
@@ -479,10 +488,15 @@ class BacktestReportGenerator:
         fig = go.Figure()
 
         # 总权益曲线
+        # 使用equity列（如果有total_equity则用total_equity）
+        equity_col = (
+            "total_equity" if "total_equity" in equity_curve.columns else "equity"
+        )
+
         fig.add_trace(
             go.Scatter(
                 x=equity_curve.index,
-                y=equity_curve["total_equity"],
+                y=equity_curve[equity_col],
                 mode="lines",
                 name="Total Equity",
                 line=dict(color="blue", width=2),
@@ -1224,7 +1238,9 @@ class BacktestReportGenerator:
             )
 
         # 分析回撤
-        max_dd = backtest_result.risk_metrics.get("max_drawdown", 0)
+        max_dd = backtest_result.performance_metrics.get(
+            "max_drawdown", backtest_result.max_drawdown
+        )
         if max_dd < 0.1:
             findings.append(
                 f"Low maximum drawdown of {max_dd * 100:.1f}% indicates good risk control."
@@ -1446,7 +1462,7 @@ class BacktestReportGenerator:
 def generate_backtest_report(
     backtest_result: Any,
     output_formats: List[str] = ["html", "pdf", "excel"],
-    output_dir: str = "./reports",
+    output_dir: str = "module_09_backtesting/reports",
 ) -> Dict[str, str]:
     """生成回测报告的便捷函数
 
