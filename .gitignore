@@ -484,3 +484,4 @@ interactive_charts/
 visualization_output/
 
 .qoder/
+node_modules/

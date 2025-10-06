@@ -402,24 +402,36 @@ class FinLoomEngine:
         if StaticFiles and FileResponse:
             # 先定义HTML页面路由（必须在mount之前）
             @app.get("/")
-            async def serve_web_app():
-                logger.info("Serving index page")
-                return FileResponse("index.html")
+            async def serve_splash_root():
+                logger.info("Serving splash page as root")
+                return FileResponse("web/splash.html")
 
             @app.get("/web/splash.html")
             async def serve_splash():
                 logger.info("Serving splash page")
                 return FileResponse("web/splash.html")
 
+            @app.get("/web/index.html")
+            async def serve_index():
+                logger.info("Serving index (landing) page")
+                return FileResponse("web/index.html")
+
             @app.get("/web/login.html")
             async def serve_login():
                 logger.info("Serving login page")
                 return FileResponse("web/login.html")
 
+            @app.get("/web/dashboard.html")
+            async def serve_dashboard():
+                logger.info("Serving dashboard")
+                return FileResponse("web/dashboard.html")
+
+            # 保留旧路径的兼容性重定向
             @app.get("/index_upgraded.html")
-            async def serve_upgraded_dashboard():
-                logger.info("Serving upgraded dashboard")
-                return FileResponse("web/index_upgraded.html")
+            async def redirect_old_dashboard():
+                from fastapi.responses import RedirectResponse
+
+                return RedirectResponse(url="/web/dashboard.html", status_code=301)
 
             @app.get("/chat-mode")
             async def serve_chat_mode_alt():
