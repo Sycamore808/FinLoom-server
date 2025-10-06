@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能对话 - FinLoom</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #3b82f6;
+            --gray-50: #f8fafc;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
+            --gray-600: #475569;
+            --gray-900: #0f172a;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f8fafc;
+        }
+
+        /* 顶部导航 */
+        .chat-navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            z-index: 1000;
+            height: 64px;
+        }
+
+        .nav-container {
+            height: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 2rem;
+            max-width: 100%;
+        }
+
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .btn-back {
+            background: none;
+            border: none;
+            color: #475569;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-back:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .nav-brand i {
+            color: #3b82f6;
+            font-size: 1.5rem;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .btn-icon {
+            background: none;
+            border: none;
+            color: #475569;
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-icon:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+
+        /* 主容器 */
+        .chat-container {
+            display: flex;
+            height: 100vh;
+            padding-top: 64px;
+        }
+
+        /* 侧边栏 */
+        .chat-sidebar {
+            width: 280px;
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .sidebar-header h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 1rem;
+        }
+
+        .btn-new-chat {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .btn-new-chat:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .chat-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .chat-item {
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: all 0.2s;
+        }
+
+        .chat-item:hover {
+            background: #f8fafc;
+        }
+
+        .chat-item.active {
+            background: #eff6ff;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .chat-item-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .chat-item-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chat-item-title {
+            font-weight: 600;
+            color: #0f172a;
+            font-size: 0.95rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chat-item-time {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-top: 0.25rem;
+        }
+
+        /* 主聊天区域 */
+        .chat-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #f8fafc;
+        }
+
+        /* 欢迎屏幕 */
+        .welcome-screen {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .welcome-content {
+            max-width: 700px;
+            text-align: center;
+        }
+
+        .welcome-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 2rem;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            color: white;
+        }
+
+        .welcome-content h2 {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 1rem;
+        }
+
+        .welcome-content p {
+            font-size: 1.1rem;
+            color: #64748b;
+            margin-bottom: 3rem;
+        }
+
+        .quick-actions h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 1.5rem;
+        }
+
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .action-card {
+            padding: 1.5rem;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .action-card:hover {
+            border-color: #3b82f6;
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.2);
+        }
+
+        .action-card i {
+            font-size: 2rem;
+            color: #3b82f6;
+            margin-bottom: 1rem;
+        }
+
+        .action-card span {
+            display: block;
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        /* 消息容器 */
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem;
+        }
+
+        /* 输入区域 */
+        .input-area {
+            padding: 1.5rem 2rem;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .input-container {
+            display: flex;
+            align-items: flex-end;
+            gap: 0.75rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .btn-attach {
+            background: none;
+            border: none;
+            color: #64748b;
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 0.75rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-attach:hover {
+            background: #f1f5f9;
+            color: #3b82f6;
+        }
+
+        textarea {
+            flex: 1;
+            padding: 0.875rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            resize: none;
+            max-height: 150px;
+            transition: all 0.2s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+
+        .btn-send {
+            padding: 0.875rem 1.5rem;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-send:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .input-hints {
+            text-align: center;
+            margin-top: 0.75rem;
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+
+        .hint-item i {
+            color: #f59e0b;
+            margin-right: 0.5rem;
+        }
+
+        /* 右侧信息面板 */
+        .info-panel {
+            width: 320px;
+            background: white;
+            border-left: 1px solid #e2e8f0;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .panel-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-header h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .btn-close-panel {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 1.25rem;
+            cursor: pointer;
+        }
+
+        .panel-content {
+            padding: 1.5rem;
+        }
+
+        .info-section {
+            margin-bottom: 2rem;
+        }
+
+        .info-section h4 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 1rem;
+        }
+
+        .news-item {
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .news-time {
+            font-size: 0.8rem;
+            color: #94a3b8;
+        }
+
+        .news-title {
+            font-size: 0.9rem;
+            color: #475569;
+            margin-top: 0.25rem;
+        }
+
+        .index-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .index-name {
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .index-value {
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+
+        .index-value.up {
+            color: #10b981;
+        }
+
+        .index-value.down {
+            color: #ef4444;
+        }
+
+        .index-value span {
+            font-size: 0.85rem;
+            margin-left: 0.5rem;
+        }
+
+        /* 响应式 */
+        @media (max-width: 1024px) {
+            .chat-sidebar {
+                display: none;
+            }
+            .info-panel {
+                display: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-container {
+                padding: 0 1rem;
+            }
+            .action-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航 -->
+    <nav class="chat-navbar">
+        <div class="nav-container">
+            <div class="nav-left">
+                <button class="btn-back" onclick="window.location.href='/index_upgraded.html'">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>返回仪表板</span>
+                </button>
+                <div class="nav-brand">
+                    <i class="fas fa-comments"></i>
+                    <span>智能对话</span>
+                </div>
+            </div>
+            <div class="nav-right">
+                <button class="btn-icon" title="历史记录">
+                    <i class="fas fa-history"></i>
+                </button>
+                <button class="btn-icon" title="设置">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容区域 -->
+    <div class="chat-container">
+        <!-- 侧边栏 -->
+        <aside class="chat-sidebar">
+            <div class="sidebar-header">
+                <h3>对话历史</h3>
+                <button class="btn-new-chat">
+                    <i class="fas fa-plus"></i>
+                    <span>新对话</span>
+                </button>
+            </div>
+            <div class="chat-list">
+                <div class="chat-item active">
+                    <div class="chat-item-icon">
+                        <i class="fas fa-comment-dots"></i>
+                    </div>
+                    <div class="chat-item-content">
+                        <div class="chat-item-title">市场分析讨论</div>
+                        <div class="chat-item-time">5分钟前</div>
+                    </div>
+                </div>
+                <div class="chat-item">
+                    <div class="chat-item-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="chat-item-content">
+                        <div class="chat-item-title">个股分析：贵州茅台</div>
+                        <div class="chat-item-time">1小时前</div>
+                    </div>
+                </div>
+                <div class="chat-item">
+                    <div class="chat-item-icon">
+                        <i class="fas fa-lightbulb"></i>
+                    </div>
+                    <div class="chat-item-content">
+                        <div class="chat-item-title">投资策略咨询</div>
+                        <div class="chat-item-time">昨天</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 聊天主区域 -->
+        <main class="chat-main" id="chatMain">
+            <!-- 消息容器（由JS动态填充） -->
+            <div class="messages-container" style="display: none; flex: 1; overflow-y: auto; padding: 2rem;"></div>
+            
+            <!-- 欢迎屏幕 -->
+            <div class="welcome-screen" id="welcomeScreen">
+                <div class="welcome-content">
+                    <div class="welcome-icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <h2>您好，我是FinLoom AI助手</h2>
+                    <p>我可以帮您分析市场、解读个股、交流投资理念</p>
+                    
+                    <div class="quick-actions">
+                        <h3>快速开始</h3>
+                        <div class="action-grid">
+                            <button class="action-card">
+                                <i class="fas fa-chart-area"></i>
+                                <span>市场分析</span>
+                            </button>
+                            <button class="action-card">
+                                <i class="fas fa-search-dollar"></i>
+                                <span>个股研究</span>
+                            </button>
+                            <button class="action-card">
+                                <i class="fas fa-graduation-cap"></i>
+                                <span>投资理念</span>
+                            </button>
+                            <button class="action-card">
+                                <i class="fas fa-tasks"></i>
+                                <span>组合优化</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 输入区域 -->
+            <div class="input-area">
+                <div class="input-container">
+                    <button class="btn-attach">
+                        <i class="fas fa-paperclip"></i>
+                    </button>
+                    <textarea 
+                        id="messageInput" 
+                        placeholder="输入您的问题或想法..." 
+                        rows="1"
+                    ></textarea>
+                    <button class="btn-send" id="sendButton">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="input-hints">
+                    <span class="hint-item">
+                        <i class="fas fa-lightbulb"></i>
+                        试试问：如何构建稳健的投资组合？
+                    </span>
+                </div>
+            </div>
+        </main>
+
+        <!-- 右侧信息面板 -->
+        <aside class="info-panel" id="infoPanel">
+            <div class="panel-header">
+                <h3>相关信息</h3>
+                <button class="btn-close-panel">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="panel-content">
+                <div class="info-section">
+                    <h4>市场快讯</h4>
+                    <div class="news-item">
+                        <div class="news-time">10:30</div>
+                        <div class="news-title">A股三大指数集体高开</div>
+                    </div>
+                    <div class="news-item">
+                        <div class="news-time">09:15</div>
+                        <div class="news-title">央行今日进行100亿元逆回购</div>
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <h4>重点指数</h4>
+                    <div class="index-item">
+                        <div class="index-name">上证指数</div>
+                        <div class="index-value up">3245.67 <span>+1.2%</span></div>
+                    </div>
+                    <div class="index-item">
+                        <div class="index-name">深证成指</div>
+                        <div class="index-value up">10856.23 <span>+0.8%</span></div>
+                    </div>
+                    <div class="index-item">
+                        <div class="index-name">创业板指</div>
+                        <div class="index-value down">2156.89 <span>-0.3%</span></div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- 消息容器（需要添加到DOM中） -->
+    <div class="messages-container" style="display: none; flex: 1; overflow-y: auto; padding: 2rem;"></div>
+
+    <!-- AUE3架构核心文件 -->
+    <script src="/web/js/core/aue3-core.js"></script>
+    <script src="/web/js/core/api-service.js"></script>
+    <script src="/web/js/shared/components.js"></script>
+    <script src="/web/js/chat/chat-mode.js"></script>
+</body>
+</html>

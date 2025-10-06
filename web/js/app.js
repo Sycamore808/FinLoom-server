@@ -656,6 +656,34 @@ class FinLoomApp {
         this.showLoading();
 
         try {
+            console.log('🤖 调用FIN-R1金融推理模型进行智能分析...');
+            
+            // 首先尝试使用FIN-R1智能对话API
+            const finR1Response = await fetch(`${this.apiBaseUrl}/api/v1/ai/chat`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: text,
+                    amount: parseFloat(amount) || 1000000,
+                    risk_tolerance: riskTolerance
+                })
+            });
+            
+            if (finR1Response.ok) {
+                const finR1Result = await finR1Response.json();
+                console.log('✅ FIN-R1分析完成:', finR1Result);
+                
+                if (finR1Result.status === 'success') {
+                    // 显示FIN-R1分析结果
+                    this.displayFinR1AnalysisResult(finR1Result);
+                    this.showAlert('FIN-R1智能分析完成！', 'success');
+                    return;
+                }
+            }
+            
+            console.log('⚠️ FIN-R1 API不可用，尝试综合市场分析...');
             console.log('Starting comprehensive market analysis...');
             
             // 主要股票列表
@@ -1889,6 +1917,371 @@ class FinLoomApp {
                 }, 300);
             }
         }, 3000);
+    }
+    
+    displayFinR1AnalysisResult(result) {
+        console.log('显示FIN-R1多模块整合分析结果:', result);
+        
+        const resultDiv = document.getElementById('analysis-result');
+        const contentDiv = document.getElementById('analysis-content');
+        
+        if (!resultDiv || !contentDiv) {
+            console.error('找不到结果显示元素');
+            return;
+        }
+        
+        // 显示结果区域
+        resultDiv.style.display = 'block';
+        
+        const data = result.data || {};
+        
+        // 提取各模块数据
+        const finR1Parsing = data.fin_r1_parsing || {};
+        const module01Data = data.module_01_data || {};
+        const module04Analysis = data.module_04_analysis || {};
+        const module05Risk = data.module_05_risk || {};
+        const recommendations = data.investment_recommendations || {};
+        const executionSummary = data.execution_summary || {};
+        
+        // FIN-R1解析结果
+        const parsedRequirement = finR1Parsing.parsed_requirement || {};
+        const strategyParams = finR1Parsing.strategy_params || {};
+        const riskParams = finR1Parsing.risk_params || {};
+        const parsingMethod = finR1Parsing.parsing_method || 'FIN-R1';
+        
+        let html = `
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle me-2"></i>
+                <strong>FIN-R1多模块智能分析完成</strong>
+                <span class="badge bg-primary ms-2">${parsingMethod}</span>
+                <span class="badge bg-info ms-2">置信度: ${((executionSummary.confidence || 0.85) * 100).toFixed(1)}%</span>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tasks me-2"></i>
+                        执行流程摘要
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><strong>已执行模块：</strong></p>
+                    <div class="d-flex flex-wrap gap-2">
+                        ${(executionSummary.modules_executed || []).map(module => 
+                            `<span class="badge bg-success">${module}</span>`
+                        ).join('')}
+                    </div>
+                    <p class="mt-3 mb-0 text-muted">
+                        FIN-R1解析您的需求后，系统自动调用数据采集、市场分析、风险评估等模块，
+                        并整合各模块结果生成最优投资方案
+                    </p>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-clipboard-list me-2"></i>
+                                需求解析结果
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <strong>投资期限:</strong> 
+                                    <span class="text-muted">${parsedRequirement.investment_horizon || '未指定'}</span>
+                                </li>
+                                <li class="mb-2">
+                                    <strong>风险偏好:</strong> 
+                                    <span class="badge ${
+                                        parsedRequirement.risk_tolerance === 'CONSERVATIVE' ? 'bg-success' :
+                                        parsedRequirement.risk_tolerance === 'MODERATE' ? 'bg-warning' :
+                                        parsedRequirement.risk_tolerance === 'AGGRESSIVE' ? 'bg-danger' : 'bg-secondary'
+                                    }">
+                                        ${parsedRequirement.risk_tolerance || '未指定'}
+                                    </span>
+                                </li>
+                                <li class="mb-2">
+                                    <strong>投资金额:</strong> 
+                                    <span class="text-muted">
+                                        ${parsedRequirement.investment_amount ? 
+                                          '¥' + parsedRequirement.investment_amount.toLocaleString() : '未指定'}
+                                    </span>
+                                </li>
+                                <li class="mb-2">
+                                    <strong>投资目标:</strong> 
+                                    <span class="text-muted">
+                                        ${parsedRequirement.investment_goals && parsedRequirement.investment_goals.length > 0 ?
+                                          parsedRequirement.investment_goals.map(g => g.goal_type).join(', ') : '未指定'}
+                                    </span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fas fa-chart-line me-2"></i>
+                                策略参数
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled">
+                                <li class="mb-2">
+                                    <strong>调仓频率:</strong> 
+                                    <span class="text-muted">${strategyParams.rebalance_frequency || '未指定'}</span>
+                                </li>
+                                <li class="mb-2">
+                                    <strong>仓位管理:</strong> 
+                                    <span class="text-muted">${strategyParams.position_sizing_method || '未指定'}</span>
+                                </li>
+                                <li class="mb-2">
+                                    <strong>策略组合:</strong>
+                                </li>
+                                ${strategyParams.strategy_mix ? `
+                                <li class="ms-3">
+                                    <small>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span>趋势跟踪:</span>
+                                            <span class="fw-bold">${(strategyParams.strategy_mix.trend_following * 100).toFixed(0)}%</span>
+                                        </div>
+                                        <div class="progress mb-2" style="height: 5px;">
+                                            <div class="progress-bar bg-primary" style="width: ${(strategyParams.strategy_mix.trend_following * 100)}%"></div>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span>均值回归:</span>
+                                            <span class="fw-bold">${(strategyParams.strategy_mix.mean_reversion * 100).toFixed(0)}%</span>
+                                        </div>
+                                        <div class="progress mb-2" style="height: 5px;">
+                                            <div class="progress-bar bg-success" style="width: ${(strategyParams.strategy_mix.mean_reversion * 100)}%"></div>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span>动量策略:</span>
+                                            <span class="fw-bold">${(strategyParams.strategy_mix.momentum * 100).toFixed(0)}%</span>
+                                        </div>
+                                        <div class="progress mb-2" style="height: 5px;">
+                                            <div class="progress-bar bg-warning" style="width: ${(strategyParams.strategy_mix.momentum * 100)}%"></div>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span>价值投资:</span>
+                                            <span class="fw-bold">${(strategyParams.strategy_mix.value * 100).toFixed(0)}%</span>
+                                        </div>
+                                        <div class="progress" style="height: 5px;">
+                                            <div class="progress-bar bg-info" style="width: ${(strategyParams.strategy_mix.value * 100)}%"></div>
+                                        </div>
+                                    </small>
+                                </li>
+                                ` : '<li class="ms-3 text-muted">无策略组合数据</li>'}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-shield-alt me-2"></i>
+                        风险控制参数
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3 mb-3 mb-md-0">
+                            <div class="financial-stat">
+                                <span class="value text-danger">
+                                    ${riskParams.max_drawdown ? (riskParams.max_drawdown * 100).toFixed(1) : '0.0'}%
+                                </span>
+                                <span class="label">最大回撤限制</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3 mb-md-0">
+                            <div class="financial-stat">
+                                <span class="value text-warning">
+                                    ${riskParams.position_limit ? (riskParams.position_limit * 100).toFixed(1) : '0.0'}%
+                                </span>
+                                <span class="label">单仓位限制</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3 mb-md-0">
+                            <div class="financial-stat">
+                                <span class="value text-info">
+                                    ${riskParams.leverage || '1.0'}x
+                                </span>
+                                <span class="label">杠杆倍数</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="financial-stat">
+                                <span class="value text-secondary">
+                                    ${riskParams.stop_loss ? (riskParams.stop_loss * 100).toFixed(1) : '0.0'}%
+                                </span>
+                                <span class="label">止损比例</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-pie me-2"></i>
+                        投资方案建议（模块1+4+5整合）
+                    </h5>
+                </div>
+                <div class="card-body">
+                    ${recommendations.recommended_stocks && recommendations.recommended_stocks.length > 0 ? `
+                    <div class="mb-4">
+                        <h6>推荐标的</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>代码</th>
+                                        <th>名称</th>
+                                        <th>当前价格</th>
+                                        <th>建议配置</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${recommendations.recommended_stocks.map(stock => `
+                                        <tr>
+                                            <td><strong>${stock.symbol}</strong></td>
+                                            <td>${stock.name}</td>
+                                            <td>¥${stock.current_price ? stock.current_price.toFixed(2) : 'N/A'}</td>
+                                            <td><span class="badge bg-info">${(stock.recommended_allocation * 100).toFixed(1)}%</span></td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    ` : ''}
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="p-3 bg-light rounded">
+                                <h6><i class="fas fa-heart text-danger me-2"></i>市场情感分析</h6>
+                                <p class="mb-0 text-muted">${recommendations.market_sentiment_insight || '市场情绪中性'}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="p-3 bg-light rounded">
+                                <h6><i class="fas fa-shield-alt text-primary me-2"></i>风险管理建议</h6>
+                                <p class="mb-0 text-muted">${recommendations.risk_management_insight || '请控制风险敞口'}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <h6>调仓频率</h6>
+                        <p class="text-muted mb-2">${recommendations.rebalance_frequency || 'weekly'}</p>
+                    </div>
+                </div>
+            </div>
+            
+            ${module01Data.realtime_prices && Object.keys(module01Data.realtime_prices).length > 0 ? `
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-database me-2"></i>
+                        模块1: 实时市场数据
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2">
+                        <span class="badge bg-success">数据质量: ${module01Data.market_data_quality || 'unknown'}</span>
+                        <span class="badge bg-info ms-2">分析标的: ${module01Data.symbols_analyzed ? module01Data.symbols_analyzed.length : 0}只</span>
+                    </p>
+                    <small class="text-muted">已成功获取实时市场数据，为投资决策提供数据基础</small>
+                </div>
+            </div>
+            ` : ''}
+            
+            ${module04Analysis.sentiment || module04Analysis.anomaly ? `
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-chart-line me-2"></i>
+                        模块4: 市场分析结果
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        ${module04Analysis.sentiment && module04Analysis.sentiment.status !== 'unavailable' ? `
+                        <div class="col-md-6">
+                            <h6 class="text-primary">情感分析</h6>
+                            <p class="text-muted small">已完成市场情感分析</p>
+                        </div>
+                        ` : ''}
+                        ${module04Analysis.anomaly && module04Analysis.anomaly.status !== 'unavailable' ? `
+                        <div class="col-md-6">
+                            <h6 class="text-primary">异常检测</h6>
+                            <p class="text-muted small">已完成价格异常检测</p>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+            ` : ''}
+            
+            ${module05Risk && Object.keys(module05Risk).length > 0 ? `
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-shield-alt me-2"></i>
+                        模块5: 风险评估指标
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <div class="financial-stat">
+                                <span class="value text-warning">${((module05Risk.volatility || 0) * 100).toFixed(1)}%</span>
+                                <span class="label">波动率</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="financial-stat">
+                                <span class="value text-info">${(module05Risk.sharpe_ratio || 0).toFixed(2)}</span>
+                                <span class="label">夏普比率</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="financial-stat">
+                                <span class="value text-danger">${((module05Risk.max_drawdown || 0) * 100).toFixed(1)}%</span>
+                                <span class="label">最大回撤</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="financial-stat">
+                                <span class="value text-success">${((module05Risk.var_95 || 0) * 100).toFixed(1)}%</span>
+                                <span class="label">VaR(95%)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
+            
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>风险提示：</strong>投资有风险，入市需谨慎。以上分析由FIN-R1模型提供，仅供参考，不构成投资建议。
+            </div>
+        `;
+        
+        contentDiv.innerHTML = html;
+        
+        // 滚动到结果区域
+        setTimeout(() => {
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
     }
 }
 
