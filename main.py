@@ -400,67 +400,100 @@ class FinLoomEngine:
 
         # 添加静态文件服务
         if StaticFiles and FileResponse:
-            # 先定义HTML页面路由（必须在mount之前）
-            @app.get("/")
-            async def serve_splash_root():
-                logger.info("Serving splash page as root")
-                return FileResponse("web/splash.html")
+            import os
 
-            @app.get("/web/splash.html")
-            async def serve_splash():
-                logger.info("Serving splash page")
-                return FileResponse("web/splash.html")
+            # 检查Vue3构建目录是否存在
+            vue_dist_path = "web/dist"
+            vue_exists = os.path.exists(vue_dist_path) and os.path.exists(
+                os.path.join(vue_dist_path, "index.html")
+            )
 
-            @app.get("/web/index.html")
-            async def serve_index():
-                logger.info("Serving index (landing) page")
-                return FileResponse("web/index.html")
+            if vue_exists:
+                # Vue3 SPA模式
+                logger.info("Using Vue3 SPA mode")
 
-            @app.get("/web/login.html")
-            async def serve_login():
-                logger.info("Serving login page")
-                return FileResponse("web/login.html")
+                # 挂载静态资源
+                app.mount(
+                    "/assets",
+                    StaticFiles(directory=os.path.join(vue_dist_path, "assets")),
+                    name="assets",
+                )
 
-            @app.get("/web/dashboard.html")
-            async def serve_dashboard():
-                logger.info("Serving dashboard")
-                return FileResponse("web/dashboard.html")
+                # 所有路由都返回index.html（SPA路由）
+                @app.get("/{full_path:path}")
+                async def serve_vue_spa(full_path: str):
+                    # API路由跳过
+                    if full_path.startswith("api/") or full_path.startswith("health"):
+                        return None
 
-            # 保留旧路径的兼容性重定向
-            @app.get("/index_upgraded.html")
-            async def redirect_old_dashboard():
-                from fastapi.responses import RedirectResponse
+                    logger.info(f"Serving Vue SPA for path: /{full_path}")
+                    return FileResponse(os.path.join(vue_dist_path, "index.html"))
 
-                return RedirectResponse(url="/web/dashboard.html", status_code=301)
+            else:
+                # 旧版HTML模式（兼容）
+                logger.info("Using legacy HTML mode (Vue3 build not found)")
 
-            @app.get("/chat-mode")
-            async def serve_chat_mode_alt():
-                logger.info("Serving chat mode (alt route)")
-                return FileResponse("web/pages/chat-mode.html")
+                # 先定义HTML页面路由（必须在mount之前）
+                @app.get("/")
+                async def serve_splash_root():
+                    logger.info("Serving splash page as root")
+                    return FileResponse("web/splash.html")
 
-            @app.get("/strategy-mode")
-            async def serve_strategy_mode_alt():
-                logger.info("Serving strategy mode (alt route)")
-                return FileResponse("web/pages/strategy-mode.html")
+                @app.get("/web/splash.html")
+                async def serve_splash():
+                    logger.info("Serving splash page")
+                    return FileResponse("web/splash.html")
 
-            @app.get("/web/pages/chat-mode.html")
-            async def serve_chat_mode():
-                logger.info("Serving chat mode page")
-                return FileResponse("web/pages/chat-mode.html")
+                @app.get("/web/index.html")
+                async def serve_index():
+                    logger.info("Serving index (landing) page")
+                    return FileResponse("web/index.html")
 
-            @app.get("/web/pages/strategy-mode.html")
-            async def serve_strategy_mode():
-                logger.info("Serving strategy mode page")
-                return FileResponse("web/pages/strategy-mode.html")
+                @app.get("/web/login.html")
+                async def serve_login():
+                    logger.info("Serving login page")
+                    return FileResponse("web/login.html")
 
-            @app.get("/test.html")
-            async def serve_test_page():
-                logger.info("Serving test page")
-                return FileResponse("web/test.html")
+                @app.get("/web/dashboard.html")
+                async def serve_dashboard():
+                    logger.info("Serving dashboard")
+                    return FileResponse("web/dashboard.html")
 
-            # 最后挂载静态文件（会捕获所有其他路径）
-            app.mount("/web", StaticFiles(directory="web"), name="web")
-            app.mount("/static", StaticFiles(directory="web"), name="static")
+                # 保留旧路径的兼容性重定向
+                @app.get("/index_upgraded.html")
+                async def redirect_old_dashboard():
+                    from fastapi.responses import RedirectResponse
+
+                    return RedirectResponse(url="/web/dashboard.html", status_code=301)
+
+                @app.get("/chat-mode")
+                async def serve_chat_mode_alt():
+                    logger.info("Serving chat mode (alt route)")
+                    return FileResponse("web/pages/chat-mode.html")
+
+                @app.get("/strategy-mode")
+                async def serve_strategy_mode_alt():
+                    logger.info("Serving strategy mode (alt route)")
+                    return FileResponse("web/pages/strategy-mode.html")
+
+                @app.get("/web/pages/chat-mode.html")
+                async def serve_chat_mode():
+                    logger.info("Serving chat mode page")
+                    return FileResponse("web/pages/chat-mode.html")
+
+                @app.get("/web/pages/strategy-mode.html")
+                async def serve_strategy_mode():
+                    logger.info("Serving strategy mode page")
+                    return FileResponse("web/pages/strategy-mode.html")
+
+                @app.get("/test.html")
+                async def serve_test_page():
+                    logger.info("Serving test page")
+                    return FileResponse("web/test.html")
+
+                # 最后挂载静态文件（会捕获所有其他路径）
+                app.mount("/web", StaticFiles(directory="web"), name="web")
+                app.mount("/static", StaticFiles(directory="web"), name="static")
 
         # 启动服务器
         config = uvicorn.Config(app, host=host, port=port, log_level="info")
