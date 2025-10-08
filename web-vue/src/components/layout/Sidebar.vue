@@ -315,9 +315,9 @@ watch(
 .sidebar-logo {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  padding: 1.25rem 1rem;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  padding: 1.25rem 0.5rem;
   border-bottom: none;
   min-height: 80px;
   background: rgba(255, 255, 255, 0.35);
@@ -329,6 +329,7 @@ watch(
     0 4px 16px rgba(15, 23, 42, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
   margin: 1rem 0.5rem 0;
+  position: relative;
 
   .logo-icon {
     width: 48px;
@@ -343,6 +344,7 @@ watch(
       0 4px 12px rgba(102, 126, 234, 0.25),
       0 0 0 1px rgba(15, 23, 42, 0.05);
     transition: all 0.3s ease;
+    flex-shrink: 0;
 
     i {
       font-size: 1.4rem;
@@ -365,8 +367,11 @@ watch(
     font-size: 1.35rem;
     font-weight: 800;
     color: #1e293b;
-      white-space: nowrap;
-    }
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    flex: 1;
+  }
 
   &:hover .logo-icon {
     transform: scale(1.05) rotate(5deg);
@@ -374,6 +379,11 @@ watch(
       0 6px 16px rgba(102, 126, 234, 0.35),
       0 0 0 1px rgba(15, 23, 42, 0.08);
   }
+}
+
+.floating-sidebar.expanded .sidebar-logo .logo-text,
+.floating-sidebar.pinned .sidebar-logo .logo-text {
+  opacity: 1;
 }
 
 // ===== 导航区域 =====
@@ -452,6 +462,7 @@ watch(
     box-shadow: 
       inset 0 1px 2px rgba(15, 23, 42, 0.08),
       0 1px 0 rgba(255, 255, 255, 0.6);
+    flex-shrink: 0;
 
     i {
       font-size: 1.15rem;
@@ -466,6 +477,8 @@ watch(
     white-space: nowrap;
     color: #495057;
     transition: all 0.3s ease;
+    opacity: 0;
+    flex: 1;
   }
 
   &::before {
@@ -515,7 +528,7 @@ watch(
     }
 
     .nav-label {
-    color: white;
+      color: white;
       font-weight: 600;
     }
 
@@ -531,6 +544,11 @@ watch(
       }
     }
   }
+}
+
+.floating-sidebar.expanded .nav-item .nav-label,
+.floating-sidebar.pinned .nav-item .nav-label {
+  opacity: 1;
 }
 .nav-item-parent {
   .nav-item-link {
@@ -579,6 +597,13 @@ watch(
     border-radius: 50%;
     background: rgba(100, 116, 139, 0.3);
     transition: all 0.3s ease;
+    flex-shrink: 0;
+  }
+
+  .nav-label {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    flex: 1;
   }
 
   &:hover {
@@ -601,6 +626,11 @@ watch(
       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
     }
   }
+}
+
+.floating-sidebar.expanded .nav-subitem .nav-label,
+.floating-sidebar.pinned .nav-subitem .nav-label {
+  opacity: 1;
 }
 
 .submenu-enter-active,
@@ -636,7 +666,7 @@ watch(
 .footer-actions {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1rem;
   align-items: stretch;
   padding: 0;
 }
@@ -647,6 +677,9 @@ watch(
   gap: 0.75rem;
   width: 100%;
   cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  min-height: 46px;
+  position: relative;
   --toggle-size: 15px;
   --container-width: 4em;
   --container-height: 2em;
@@ -818,6 +851,10 @@ watch(
     font-weight: 500;
     color: #475569;
     white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    flex: 1;
+    margin-left: 0.75rem;
   }
 }
 
@@ -866,9 +903,10 @@ watch(
   }
 
   &.pin-btn {
-    justify-content: center;
-    min-height: 44px;
+    justify-content: flex-start;
+    min-height: 46px;
     padding: 0.5rem 0.75rem;
+    position: relative;
 
     .toggle {
       position: relative;
@@ -881,6 +919,7 @@ watch(
       justify-content: center;
       gap: 5px;
       transition-duration: .3s;
+      flex-shrink: 0;
     }
 
     .bars {
@@ -889,6 +928,13 @@ watch(
       background-color: #64748b;
       border-radius: 3px;
       transition-duration: .3s;
+    }
+
+    .action-label {
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      flex: 1;
+      margin-left: 0.75rem;
     }
 
     &.active {
@@ -941,9 +987,10 @@ watch(
     box-shadow: 
       0 4px 12px rgba(240, 147, 251, 0.3),
       0 0 0 1px rgba(240, 147, 251, 0.2);
-    padding: 0.5rem 0.75rem;
+    padding: 0.5rem 0.375rem;
     min-height: 46px;
     justify-content: flex-start;
+    position: relative;
 
     .avatar-icon {
       width: 40px;
@@ -955,6 +1002,7 @@ watch(
       align-items: center;
       justify-content: center;
       transition: all 0.3s ease;
+      flex-shrink: 0;
 
       i {
         font-size: 1.2rem;
@@ -966,8 +1014,11 @@ watch(
       display: flex;
       flex-direction: column;
       gap: 0.125rem;
-      flex: 1;
       text-align: left;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      flex: 1;
+      margin-left: 0.375rem;
 
       .action-label {
         color: white;
@@ -989,10 +1040,25 @@ watch(
 
       .avatar-icon {
         background: rgba(255, 255, 255, 0.35);
-      transform: scale(1.05);
+        transform: scale(1.05);
       }
     }
   }
+}
+
+.floating-sidebar.expanded .avatar-btn .avatar-info,
+.floating-sidebar.pinned .avatar-btn .avatar-info {
+  opacity: 1;
+}
+
+.floating-sidebar.expanded .pin-btn .action-label,
+.floating-sidebar.pinned .pin-btn .action-label {
+  opacity: 1;
+}
+
+.floating-sidebar.expanded .theme-switch .action-label,
+.floating-sidebar.pinned .theme-switch .action-label {
+  opacity: 1;
 }
 
 // ===== 动画效果 =====

@@ -1,9 +1,9 @@
 <template>
   <v-container fluid class="strategy-view pa-6">
-    <!-- 进度条 - Material 3 增强 -->
-    <v-card variant="flat" class="mb-6" color="primary-container">
+    <!-- 进度条 -->
+    <v-card class="mb-6" rounded="xl">
       <v-card-text class="pa-6">
-        <v-stepper v-model="currentStep" alt-labels bg-color="transparent" flat>
+        <v-stepper v-model="currentStep" alt-labels flat>
           <v-stepper-header>
             <v-stepper-item 
               value="1" 
@@ -40,28 +40,29 @@
     <v-window v-model="currentStep">
       <!-- 步骤1: 需求分析 -->
       <v-window-item value="1">
-        <v-card variant="elevated">
-          <v-card-title class="text-h5 font-weight-bold pa-6">
+        <v-card rounded="xl">
+          <v-card-title class="text-h5 font-weight-medium pa-6">
+            <v-icon start>mdi-chart-line</v-icon>
             投资需求分析
           </v-card-title>
           <v-card-subtitle class="px-6 pb-4">请告诉我们您的投资目标和偏好</v-card-subtitle>
           <v-card-text>
             <v-row>
               <v-col cols="12" md="6">
-                <v-card variant="flat" class="bg-primary-container pa-4 mb-4">
+                <v-sheet rounded="lg" class="pa-4 mb-4" color="primary-container" style="background-color: rgba(30, 136, 229, 0.06) !important;">
                   <div class="d-flex align-center mb-4">
-                    <v-avatar color="primary" variant="tonal" size="48" class="mr-3">
-                      <v-icon size="28">mdi-bullseye</v-icon>
-                    </v-avatar>
-                    <h3 class="text-h6 font-weight-bold">投资目标</h3>
-        </div>
+                    <v-icon size="24" class="mr-3 text-primary">mdi-target</v-icon>
+                    <h3 class="text-h6 font-weight-medium">投资目标</h3>
+                  </div>
                   <v-text-field
                     v-model.number="form.targetReturn"
                     label="收益目标 (%/年)"
                     type="number"
                     prepend-inner-icon="mdi-percent"
                     class="mb-4"
-                    bg-color="surface"
+                    variant="filled"
+                    density="comfortable"
+                    rounded="lg"
                   ></v-text-field>
                   <v-select
                     v-model="form.investmentPeriod"
@@ -73,26 +74,28 @@
                     label="投资期限"
                     prepend-inner-icon="mdi-calendar"
                     class="mb-4"
-                    bg-color="surface"
+                    variant="filled"
+                    density="comfortable"
+                    rounded="lg"
                   ></v-select>
                   <v-text-field
                     v-model.number="form.initialCapital"
                     label="初始资金 (万元)"
                     type="number"
                     prepend-inner-icon="mdi-currency-usd"
-                    bg-color="surface"
+                    variant="filled"
+                    density="comfortable"
+                    rounded="lg"
                   ></v-text-field>
-                </v-card>
+                </v-sheet>
               </v-col>
 
               <v-col cols="12" md="6">
-                <v-card variant="flat" class="bg-secondary-container pa-4 mb-4">
+                <v-sheet rounded="lg" class="pa-4 mb-4" color="secondary-container" style="background-color: rgba(0, 172, 193, 0.06) !important;">
                   <div class="d-flex align-center mb-4">
-                    <v-avatar color="secondary" variant="tonal" size="48" class="mr-3">
-                      <v-icon size="28">mdi-shield-check</v-icon>
-                    </v-avatar>
-                    <h3 class="text-h6 font-weight-bold">风险偏好</h3>
-            </div>
+                    <v-icon size="24" class="mr-3 text-secondary">mdi-shield-check</v-icon>
+                    <h3 class="text-h6 font-weight-medium">风险偏好</h3>
+                  </div>
                   <v-chip-group
                     v-model="form.riskPreference"
                     mandatory
@@ -100,33 +103,33 @@
                   >
                     <v-chip 
                       value="conservative" 
-                      :variant="form.riskPreference === 'conservative' ? 'elevated' : 'flat'" 
+                      :variant="form.riskPreference === 'conservative' ? 'elevated' : 'outlined'" 
                       :color="form.riskPreference === 'conservative' ? 'success' : undefined"
-                      :class="form.riskPreference === 'conservative' ? 'text-white' : 'bg-success-container'"
                       size="large" 
-                      class="font-weight-bold"
+                      class="font-weight-medium"
+                      rounded="lg"
                     >
                       <v-icon start>mdi-shield</v-icon>
                       保守型
                     </v-chip>
                     <v-chip 
                       value="moderate" 
-                      :variant="form.riskPreference === 'moderate' ? 'elevated' : 'flat'" 
+                      :variant="form.riskPreference === 'moderate' ? 'elevated' : 'outlined'" 
                       :color="form.riskPreference === 'moderate' ? 'primary' : undefined"
-                      :class="form.riskPreference === 'moderate' ? 'text-white' : 'bg-primary-container'"
                       size="large" 
-                      class="font-weight-bold"
+                      class="font-weight-medium"
+                      rounded="lg"
                     >
                       <v-icon start>mdi-scale-balance</v-icon>
                       稳健型
                     </v-chip>
                     <v-chip 
                       value="aggressive" 
-                      :variant="form.riskPreference === 'aggressive' ? 'elevated' : 'flat'" 
+                      :variant="form.riskPreference === 'aggressive' ? 'elevated' : 'outlined'" 
                       :color="form.riskPreference === 'aggressive' ? 'error' : undefined"
-                      :class="form.riskPreference === 'aggressive' ? 'text-white' : 'bg-error-container'"
                       size="large" 
-                      class="font-weight-bold"
+                      class="font-weight-medium"
+                      rounded="lg"
                     >
                       <v-icon start>mdi-rocket-launch</v-icon>
                       进取型
@@ -137,41 +140,40 @@
                     label="最大回撤容忍度 (%)"
                     type="number"
                     prepend-inner-icon="mdi-arrow-down"
-                    bg-color="surface"
+                    variant="filled"
+                    density="comfortable"
+                    rounded="lg"
                   ></v-text-field>
-                </v-card>
+                </v-sheet>
               </v-col>
 
               <v-col cols="12" md="6">
-                <v-card variant="flat" class="bg-tertiary-container pa-4 mb-4">
+                <v-sheet rounded="lg" class="pa-4 mb-4" color="tertiary-container" style="background-color: rgba(123, 97, 255, 0.06) !important;">
                   <div class="d-flex align-center mb-4">
-                    <v-avatar color="tertiary" variant="tonal" size="48" class="mr-3">
-                      <v-icon size="28">mdi-tag-multiple</v-icon>
-                    </v-avatar>
-                    <h3 class="text-h6 font-weight-bold">偏好行业</h3>
+                    <v-icon size="24" class="mr-3 text-tertiary">mdi-tag-multiple</v-icon>
+                    <h3 class="text-h6 font-weight-medium">偏好行业</h3>
                   </div>
                   <v-chip-group v-model="form.preferredTags" multiple column>
                     <v-chip 
                       v-for="tag in allTags" 
                       :key="tag" 
                       :value="tag" 
-                      variant="elevated"
+                      variant="outlined"
                       color="tertiary"
                       size="large"
+                      rounded="lg"
                     >
                       {{ tag }}
                     </v-chip>
                   </v-chip-group>
-                </v-card>
+                </v-sheet>
               </v-col>
 
               <v-col cols="12" md="6">
-                <v-card variant="flat" class="bg-success-container pa-4 mb-4">
+                <v-sheet rounded="lg" class="pa-4 mb-4" color="success-container" style="background-color: rgba(0, 168, 107, 0.08) !important;">
                   <div class="d-flex align-center mb-4">
-                    <v-avatar color="success" variant="tonal" size="48" class="mr-3">
-                      <v-icon size="28">mdi-cog</v-icon>
-                    </v-avatar>
-                    <h3 class="text-h6 font-weight-bold">策略偏好</h3>
+                    <v-icon size="24" class="mr-3 text-success">mdi-cog</v-icon>
+                    <h3 class="text-h6 font-weight-medium">策略偏好</h3>
                   </div>
                   <v-select
                     v-model="form.strategyType"
@@ -184,7 +186,9 @@
                     label="策略类型"
                     prepend-inner-icon="mdi-strategy"
                     class="mb-4"
-                    bg-color="surface"
+                    variant="filled"
+                    density="comfortable"
+                    rounded="lg"
                   ></v-select>
                   <v-select
                     v-model="form.tradingFrequency"
@@ -195,19 +199,19 @@
                     ]"
                     label="交易频率"
                     prepend-inner-icon="mdi-clock-outline"
-                    bg-color="surface"
+                    variant="filled"
+                    density="comfortable"
+                    rounded="lg"
                   ></v-select>
-                </v-card>
+                </v-sheet>
               </v-col>
 
               <v-col cols="12">
-                <v-card variant="flat" class="bg-warning-container pa-4">
+                <v-sheet rounded="lg" class="pa-4" color="warning-container" style="background-color: rgba(255, 152, 0, 0.06) !important;">
                   <div class="d-flex align-center mb-4">
-                    <v-avatar color="warning" variant="tonal" size="48" class="mr-3">
-                      <v-icon size="28">mdi-comment-text</v-icon>
-                    </v-avatar>
+                    <v-icon size="24" class="mr-3 text-warning">mdi-comment-text</v-icon>
                     <div>
-                      <h3 class="text-h6 font-weight-bold">补充需求说明</h3>
+                      <h3 class="text-h6 font-weight-medium">补充需求说明</h3>
                       <p class="text-caption text-medium-emphasis mb-0">提供更详细的需求可以帮助AI生成更符合您期望的策略</p>
                     </div>
                   </div>
@@ -216,15 +220,17 @@
                     label="其他特殊需求（可选）"
                     rows="4"
                     placeholder="例如：希望避开某些行业、关注特定市场事件、特殊的止损要求等..."
-                    bg-color="surface"
+                    variant="filled"
+                    density="comfortable"
+                    rounded="lg"
                   ></v-textarea>
-                </v-card>
+                </v-sheet>
               </v-col>
             </v-row>
           </v-card-text>
           <v-card-actions class="px-6 pb-6">
             <v-spacer></v-spacer>
-            <v-btn color="primary" size="large" @click="nextStep" prepend-icon="mdi-arrow-right">
+            <v-btn color="primary" size="large" @click="nextStep" prepend-icon="mdi-arrow-right" rounded="pill" variant="flat">
               下一步：生成策略
             </v-btn>
           </v-card-actions>
@@ -233,66 +239,65 @@
 
       <!-- 步骤2: 策略生成 -->
       <v-window-item value="2">
-        <v-card variant="elevated">
-          <v-card-title class="text-h5 font-weight-bold pa-6">AI策略生成</v-card-title>
+        <v-card rounded="xl">
+          <v-card-title class="text-h5 font-weight-medium pa-6">
+            <v-icon start>mdi-brain</v-icon>
+            AI策略生成
+          </v-card-title>
           <v-card-subtitle class="px-6 pb-4">基于您的需求，我们正在为您生成个性化投资策略</v-card-subtitle>
           <v-card-text class="pa-10">
             <div v-if="!showResult">
-              <v-card variant="flat" class="bg-primary-container pa-8 text-center">
-                <v-avatar color="primary" size="120" class="mb-6">
-                  <v-icon size="64">mdi-brain</v-icon>
-                </v-avatar>
-                <h3 class="text-h4 mb-4 font-weight-bold">AI正在分析您的需求...</h3>
+              <v-sheet rounded="lg" class="pa-8 text-center" color="primary-container" style="background-color: rgba(30, 136, 229, 0.08) !important;">
+                <v-icon size="64" class="mb-6 text-primary">mdi-brain</v-icon>
+                <h3 class="text-h4 mb-4 font-weight-medium">AI正在分析您的需求...</h3>
                 <v-progress-linear
                   v-model="generationProgress"
-                  height="24"
+                  height="8"
                   color="primary"
                   rounded
                   class="mb-6"
                 >
-                  <strong class="text-white">{{ generationProgress }}%</strong>
+                  <strong class="text-primary">{{ generationProgress }}%</strong>
                 </v-progress-linear>
-                <v-chip color="primary" size="large" variant="flat">
+                <v-chip color="primary" size="large" variant="outlined" rounded="lg">
                   <v-icon start>mdi-cog</v-icon>
                   {{ statusText }}
                 </v-chip>
-              </v-card>
+              </v-sheet>
             </div>
 
             <div v-else>
               <v-alert 
                 type="success" 
                 variant="tonal" 
-                prominent
                 border="start"
                 class="mb-6"
+                rounded="lg"
               >
                 <template v-slot:prepend>
-                  <v-icon size="48">mdi-check-circle</v-icon>
+                  <v-icon size="32">mdi-check-circle</v-icon>
                 </template>
-                <div class="text-h6 font-weight-bold mb-2">策略生成成功！</div>
+                <div class="text-h6 font-weight-medium mb-2">策略生成成功！</div>
                 <div>您的个性化投资策略已经准备就绪</div>
               </v-alert>
-              <v-card variant="flat" class="bg-secondary-container">
+              <v-sheet rounded="lg" color="secondary-container" style="background-color: rgba(0, 172, 193, 0.08) !important;">
                 <v-card-title class="text-h5 pa-6 d-flex align-center">
-                  <v-avatar color="secondary" variant="tonal" size="48" class="mr-3">
-                    <v-icon>mdi-strategy</v-icon>
-                  </v-avatar>
+                  <v-icon size="24" class="mr-3 text-secondary">mdi-strategy</v-icon>
                   {{ result.title }}
                 </v-card-title>
                 <v-divider></v-divider>
                 <v-card-text class="pa-6">
                   <p class="text-h6">{{ result.description }}</p>
                 </v-card-text>
-              </v-card>
+              </v-sheet>
             </div>
           </v-card-text>
           <v-card-actions class="px-6 pb-6">
-            <v-btn variant="text" @click="prevStep" prepend-icon="mdi-arrow-left">
+            <v-btn variant="text" @click="prevStep" prepend-icon="mdi-arrow-left" rounded="pill">
               上一步
             </v-btn>
             <v-spacer></v-spacer>
-            <v-btn v-if="showResult" color="primary" size="large" @click="nextStep" prepend-icon="mdi-arrow-right">
+            <v-btn v-if="showResult" color="primary" size="large" @click="nextStep" prepend-icon="mdi-arrow-right" rounded="pill" variant="flat">
               下一步：回测优化
             </v-btn>
           </v-card-actions>
@@ -301,28 +306,29 @@
 
       <!-- 步骤3: 回测优化 -->
       <v-window-item value="3">
-        <v-card variant="elevated">
-          <v-card-title class="text-h5 font-weight-bold pa-6">回测优化</v-card-title>
+        <v-card rounded="xl">
+          <v-card-title class="text-h5 font-weight-medium pa-6">
+            <v-icon start>mdi-chart-timeline-variant</v-icon>
+            回测优化
+          </v-card-title>
           <v-card-subtitle class="px-6 pb-4">使用历史数据测试策略表现</v-card-subtitle>
           <v-card-text class="pa-10">
-            <v-card variant="flat" class="bg-tertiary-container pa-8 text-center">
-              <v-avatar color="tertiary" size="120" class="mb-6">
-                <v-icon size="64">mdi-chart-timeline-variant</v-icon>
-              </v-avatar>
-              <h3 class="text-h5 mb-4 font-weight-bold">回测功能</h3>
+            <v-sheet rounded="lg" class="pa-8 text-center" color="tertiary-container" style="background-color: rgba(123, 97, 255, 0.08) !important;">
+              <v-icon size="64" class="mb-6 text-tertiary">mdi-chart-timeline-variant</v-icon>
+              <h3 class="text-h5 mb-4 font-weight-medium">回测功能</h3>
               <p class="text-body-1">该功能正在开发中，敬请期待...</p>
-              <v-chip color="tertiary" size="large" variant="tonal" class="mt-4">
+              <v-chip color="tertiary" size="large" variant="outlined" class="mt-4" rounded="lg">
                 <v-icon start>mdi-clock-outline</v-icon>
                 Coming Soon
               </v-chip>
-            </v-card>
+            </v-sheet>
           </v-card-text>
           <v-card-actions class="px-6 pb-6">
-            <v-btn variant="text" @click="prevStep" prepend-icon="mdi-arrow-left">
+            <v-btn variant="text" @click="prevStep" prepend-icon="mdi-arrow-left" rounded="pill">
               上一步
             </v-btn>
             <v-spacer></v-spacer>
-            <v-btn color="primary" size="large" @click="nextStep" prepend-icon="mdi-arrow-right">
+            <v-btn color="primary" size="large" @click="nextStep" prepend-icon="mdi-arrow-right" rounded="pill" variant="flat">
               下一步：代码生成
             </v-btn>
           </v-card-actions>
@@ -331,28 +337,29 @@
 
       <!-- 步骤4: 代码生成 -->
       <v-window-item value="4">
-        <v-card variant="elevated">
-          <v-card-title class="text-h5 font-weight-bold pa-6">代码生成</v-card-title>
+        <v-card rounded="xl">
+          <v-card-title class="text-h5 font-weight-medium pa-6">
+            <v-icon start>mdi-code-braces</v-icon>
+            代码生成
+          </v-card-title>
           <v-card-subtitle class="px-6 pb-4">生成可执行的策略代码</v-card-subtitle>
           <v-card-text class="pa-10">
-            <v-card variant="flat" class="bg-success-lighten-4 pa-8 text-center">
-              <v-avatar color="success" size="120" class="mb-6">
-                <v-icon size="64">mdi-code-braces</v-icon>
-              </v-avatar>
-              <h3 class="text-h5 mb-4 font-weight-bold">代码生成</h3>
+            <v-sheet rounded="lg" class="pa-8 text-center" color="success-container" style="background-color: rgba(0, 168, 107, 0.08) !important;">
+              <v-icon size="64" class="mb-6 text-success">mdi-code-braces</v-icon>
+              <h3 class="text-h5 mb-4 font-weight-medium">代码生成</h3>
               <p class="text-body-1">该功能正在开发中，敬请期待...</p>
-              <v-chip color="success" size="large" variant="tonal" class="mt-4">
+              <v-chip color="success" size="large" variant="outlined" class="mt-4" rounded="lg">
                 <v-icon start>mdi-clock-outline</v-icon>
                 Coming Soon
               </v-chip>
-            </v-card>
+            </v-sheet>
           </v-card-text>
           <v-card-actions class="px-6 pb-6">
-            <v-btn variant="text" @click="prevStep" prepend-icon="mdi-arrow-left">
+            <v-btn variant="text" @click="prevStep" prepend-icon="mdi-arrow-left" rounded="pill">
               上一步
             </v-btn>
             <v-spacer></v-spacer>
-            <v-btn color="success" size="large" prepend-icon="mdi-content-save">
+            <v-btn color="success" size="large" prepend-icon="mdi-content-save" rounded="pill" variant="flat">
               保存策略
             </v-btn>
           </v-card-actions>

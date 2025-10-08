@@ -1,9 +1,24 @@
 <template>
   <v-container fluid class="settings-view pa-6">
-    <!-- 页面标题 -->
-    <div class="mb-8">
-      <h1 class="text-h3 font-weight-bold mb-2">系统设置</h1>
-      <p class="text-body-1 text-medium-emphasis">管理您的账户和系统配置</p>
+    <!-- 页面头部 -->
+    <div class="mb-6">
+      <div class="d-flex justify-space-between align-center mb-4">
+        <div>
+          <h1 class="text-h3 font-weight-bold mb-2">系统设置</h1>
+          <p class="text-body-1 text-medium-emphasis">管理您的账户和系统配置</p>
+        </div>
+        <div class="d-flex gap-2">
+          <v-btn
+            color="primary"
+            variant="flat"
+            prepend-icon="mdi-download"
+            @click="exportSettings"
+            rounded="pill"
+          >
+            导出设置
+          </v-btn>
+        </div>
+      </div>
     </div>
 
     <!-- 主内容区域 -->
@@ -398,6 +413,194 @@
               </v-card-actions>
             </v-card>
           </v-window-item>
+
+          <!-- API设置 -->
+          <v-window-item value="api">
+            <v-card variant="elevated">
+              <v-card-title class="text-h5 font-weight-bold d-flex align-center pa-6">
+                <v-avatar color="info" variant="tonal" size="48" class="mr-4">
+                  <v-icon size="32">mdi-api</v-icon>
+                </v-avatar>
+                <div>
+                  <div>API设置</div>
+                  <div class="text-caption text-medium-emphasis font-weight-regular">管理API密钥和接口配置</div>
+                </div>
+              </v-card-title>
+              <v-card-text class="pa-6">
+                <v-form>
+                  <v-text-field
+                    v-model="api.apiKey"
+                    label="API密钥"
+                    prepend-inner-icon="mdi-key"
+                    variant="outlined"
+                    density="comfortable"
+                    class="mb-4"
+                    :type="showApiKey ? 'text' : 'password'"
+                    :append-inner-icon="showApiKey ? 'mdi-eye-off' : 'mdi-eye'"
+                    @click:append-inner="showApiKey = !showApiKey"
+                    readonly
+                  ></v-text-field>
+
+                  <v-text-field
+                    v-model="api.secretKey"
+                    label="密钥"
+                    prepend-inner-icon="mdi-key-variant"
+                    variant="outlined"
+                    density="comfortable"
+                    class="mb-4"
+                    :type="showSecretKey ? 'text' : 'password'"
+                    :append-inner-icon="showSecretKey ? 'mdi-eye-off' : 'mdi-eye'"
+                    @click:append-inner="showSecretKey = !showSecretKey"
+                    readonly
+                  ></v-text-field>
+
+                  <v-select
+                    v-model="api.environment"
+                    :items="apiEnvironments"
+                    label="环境"
+                    prepend-inner-icon="mdi-server"
+                    variant="outlined"
+                    density="comfortable"
+                    class="mb-4"
+                  ></v-select>
+
+                  <v-switch
+                    v-model="api.enabled"
+                    label="启用API交易"
+                    color="primary"
+                    inset
+                    hide-details
+                    class="mb-2"
+                  ></v-switch>
+
+                  <v-switch
+                    v-model="api.autoRefresh"
+                    label="自动刷新令牌"
+                    color="primary"
+                    inset
+                    hide-details
+                    class="mb-2"
+                  ></v-switch>
+                </v-form>
+              </v-card-text>
+              <v-card-actions class="px-6 pb-6">
+                <v-btn
+                  color="primary"
+                  size="large"
+                  variant="elevated"
+                  prepend-icon="mdi-content-save"
+                  @click="saveApi"
+                >
+                  保存更改
+                </v-btn>
+                <v-btn
+                  color="warning"
+                  size="large"
+                  variant="outlined"
+                  prepend-icon="mdi-refresh"
+                  @click="regenerateApiKey"
+                >
+                  重新生成
+                </v-btn>
+              </v-card-actions>
+            </v-card>
+          </v-window-item>
+
+          <!-- 数据备份 -->
+          <v-window-item value="backup">
+            <v-card variant="elevated">
+              <v-card-title class="text-h5 font-weight-bold d-flex align-center pa-6">
+                <v-avatar color="success" variant="tonal" size="48" class="mr-4">
+                  <v-icon size="32">mdi-backup-restore</v-icon>
+                </v-avatar>
+                <div>
+                  <div>数据备份</div>
+                  <div class="text-caption text-medium-emphasis font-weight-regular">备份和恢复您的数据</div>
+                </div>
+              </v-card-title>
+              <v-card-text class="pa-6">
+                <v-row>
+                  <v-col cols="12" md="6">
+                    <v-card variant="outlined" class="pa-4">
+                      <div class="d-flex align-center mb-4">
+                        <v-icon color="primary" class="mr-3">mdi-download</v-icon>
+                        <h3 class="text-h6 font-weight-bold">导出数据</h3>
+                      </div>
+                      <p class="text-body-2 text-medium-emphasis mb-4">
+                        导出您的投资组合、交易记录和设置数据
+                      </p>
+                      <v-btn
+                        color="primary"
+                        variant="elevated"
+                        prepend-icon="mdi-download"
+                        @click="exportData"
+                        block
+                      >
+                        导出数据
+                      </v-btn>
+                    </v-card>
+                  </v-col>
+
+                  <v-col cols="12" md="6">
+                    <v-card variant="outlined" class="pa-4">
+                      <div class="d-flex align-center mb-4">
+                        <v-icon color="success" class="mr-3">mdi-upload</v-icon>
+                        <h3 class="text-h6 font-weight-bold">导入数据</h3>
+                      </div>
+                      <p class="text-body-2 text-medium-emphasis mb-4">
+                        从备份文件恢复您的数据
+                      </p>
+                      <v-btn
+                        color="success"
+                        variant="elevated"
+                        prepend-icon="mdi-upload"
+                        @click="importData"
+                        block
+                      >
+                        导入数据
+                      </v-btn>
+                    </v-card>
+                  </v-col>
+                </v-row>
+
+                <v-divider class="my-6"></v-divider>
+
+                <h3 class="text-h6 font-weight-bold mb-4">备份历史</h3>
+                <v-list>
+                  <v-list-item
+                    v-for="backup in backupHistory"
+                    :key="backup.id"
+                    class="px-0"
+                  >
+                    <template v-slot:prepend>
+                      <v-avatar color="primary" variant="tonal" size="40">
+                        <v-icon>mdi-file-document</v-icon>
+                      </v-avatar>
+                    </template>
+                    <v-list-item-title class="font-weight-bold">{{ backup.name }}</v-list-item-title>
+                    <v-list-item-subtitle>{{ backup.date }} | {{ backup.size }}</v-list-item-subtitle>
+                    <template v-slot:append>
+                      <div class="d-flex gap-1">
+                        <v-btn
+                          icon="mdi-download"
+                          variant="text"
+                          size="small"
+                          @click="downloadBackup(backup)"
+                        ></v-btn>
+                        <v-btn
+                          icon="mdi-delete"
+                          variant="text"
+                          size="small"
+                          color="error"
+                          @click="deleteBackup(backup)"
+                        ></v-btn>
+                      </div>
+                    </template>
+                  </v-list-item>
+                </v-list>
+              </v-card-text>
+            </v-card>
+          </v-window-item>
         </v-window>
       </v-col>
     </v-row>
@@ -430,7 +633,9 @@ const settingsTabs = [
   { id: 'trading', label: '交易设置', icon: 'mdi-chart-line' },
   { id: 'notifications', label: '通知设置', icon: 'mdi-bell' },
   { id: 'security', label: '安全设置', icon: 'mdi-shield-lock' },
-  { id: 'preferences', label: '系统偏好', icon: 'mdi-cog' }
+  { id: 'preferences', label: '系统偏好', icon: 'mdi-cog' },
+  { id: 'api', label: 'API设置', icon: 'mdi-api' },
+  { id: 'backup', label: '数据备份', icon: 'mdi-backup-restore' }
 ]
 
 // 个人信息
@@ -508,6 +713,46 @@ const chartStyles = [
   { title: '柱状图', value: 'bar' }
 ]
 
+// API设置
+const api = ref({
+  apiKey: 'ak_1234567890abcdef',
+  secretKey: 'sk_abcdef1234567890',
+  environment: 'production',
+  enabled: true,
+  autoRefresh: true
+})
+
+const showApiKey = ref(false)
+const showSecretKey = ref(false)
+
+const apiEnvironments = [
+  { title: '生产环境', value: 'production' },
+  { title: '测试环境', value: 'testing' },
+  { title: '开发环境', value: 'development' }
+]
+
+// 备份历史
+const backupHistory = ref([
+  {
+    id: 1,
+    name: '完整备份 - 2025-01-15',
+    date: '2025-01-15 14:30',
+    size: '2.3 MB'
+  },
+  {
+    id: 2,
+    name: '设置备份 - 2025-01-10',
+    date: '2025-01-10 09:15',
+    size: '156 KB'
+  },
+  {
+    id: 3,
+    name: '交易数据备份 - 2025-01-05',
+    date: '2025-01-05 16:45',
+    size: '1.8 MB'
+  }
+])
+
 // Snackbar 状态
 const snackbar = reactive({
   show: false,
@@ -567,6 +812,42 @@ const changeTheme = (value) => {
     // 自动模式：根据系统偏好
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     theme.global.name.value = isDark ? 'finloomDarkTheme' : 'finloomTheme'
+  }
+}
+
+// 新增方法
+const saveApi = () => {
+  showMessage('API设置已保存')
+}
+
+const regenerateApiKey = () => {
+  // 生成新的API密钥
+  api.value.apiKey = 'ak_' + Math.random().toString(36).substr(2, 16)
+  api.value.secretKey = 'sk_' + Math.random().toString(36).substr(2, 16)
+  showMessage('API密钥已重新生成', 'warning')
+}
+
+const exportSettings = () => {
+  showMessage('设置已导出')
+}
+
+const exportData = () => {
+  showMessage('数据导出已开始')
+}
+
+const importData = () => {
+  showMessage('数据导入功能开发中', 'info')
+}
+
+const downloadBackup = (backup) => {
+  showMessage(`正在下载 ${backup.name}`)
+}
+
+const deleteBackup = (backup) => {
+  const index = backupHistory.value.findIndex(b => b.id === backup.id)
+  if (index > -1) {
+    backupHistory.value.splice(index, 1)
+    showMessage('备份已删除', 'warning')
   }
 }
 </script>

@@ -11,6 +11,7 @@
 - **Axios** - HTTP客户端
 - **Chart.js** - 数据可视化
 - **Sass** - CSS预处理器
+- **vuetify3** - Material3 设计风格
 
 ## 项目结构
 
