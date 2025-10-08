@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统设置 - FinLoom</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/web/css/common.css">
+    <style>
+        .settings-nav {
+            display: flex;
+            gap: 8px;
+            border-bottom: 2px solid #e5e7eb;
+            margin-bottom: 32px;
+        }
+        
+        .settings-nav-item {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            color: #6b7280;
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s;
+        }
+        
+        .settings-nav-item:hover {
+            color: #667eea;
+        }
+        
+        .settings-nav-item.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        
+        .settings-section {
+            display: none;
+        }
+        
+        .settings-section.active {
+            display: block;
+        }
+        
+        .setting-item {
+            padding: 20px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .setting-item:last-child {
+            border-bottom: none;
+        }
+        
+        .setting-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .setting-title {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        .setting-desc {
+            font-size: 14px;
+            color: #6b7280;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            width: 48px;
+            height: 24px;
+            background: #cbd5e0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .toggle-switch.active {
+            background: #667eea;
+        }
+        
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: left 0.3s;
+        }
+        
+        .toggle-switch.active::after {
+            left: 26px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="logo">
+                    <i class="fas fa-chart-line"></i>
+                    <span>FinLoom</span>
+                </h1>
+            </div>
+            <nav class="sidebar-menu">
+                <a href="/web/index_upgraded.html" class="menu-item">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>仪表板</span>
+                </a>
+                <a href="/web/pages/portfolio.html" class="menu-item">
+                    <i class="fas fa-briefcase"></i>
+                    <span>投资组合</span>
+                </a>
+                <a href="/web/pages/backtest.html" class="menu-item">
+                    <i class="fas fa-history"></i>
+                    <span>策略回测</span>
+                </a>
+                <a href="/web/pages/data-manager.html" class="menu-item">
+                    <i class="fas fa-database"></i>
+                    <span>数据管理</span>
+                </a>
+                <a href="/web/pages/reports.html" class="menu-item">
+                    <i class="fas fa-file-alt"></i>
+                    <span>报告中心</span>
+                </a>
+                <a href="/web/pages/settings.html" class="menu-item active">
+                    <i class="fas fa-cog"></i>
+                    <span>系统设置</span>
+                </a>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <h2>系统设置</h2>
+                    <p class="header-subtitle">System Settings</p>
+                </div>
+                <div class="header-right">
+                    <button class="btn btn-primary" onclick="saveSettings()">
+                        <i class="fas fa-save"></i>
+                        保存设置
+                    </button>
+                </div>
+            </header>
+
+            <div class="content">
+                <div class="card">
+                    <div class="settings-nav">
+                        <button class="settings-nav-item active" onclick="switchTab('general')">
+                            <i class="fas fa-sliders-h"></i> 基本设置
+                        </button>
+                        <button class="settings-nav-item" onclick="switchTab('model')">
+                            <i class="fas fa-brain"></i> 模型配置
+                        </button>
+                        <button class="settings-nav-item" onclick="switchTab('data')">
+                            <i class="fas fa-database"></i> 数据源
+                        </button>
+                        <button class="settings-nav-item" onclick="switchTab('risk')">
+                            <i class="fas fa-shield-alt"></i> 风险参数
+                        </button>
+                        <button class="settings-nav-item" onclick="switchTab('notification')">
+                            <i class="fas fa-bell"></i> 通知设置
+                        </button>
+                    </div>
+
+                    <div class="card-body">
+                        <!-- 基本设置 -->
+                        <div id="general-section" class="settings-section active">
+                            <div class="setting-item">
+                                <div class="setting-header">
+                                    <div>
+                                        <div class="setting-title">自动刷新</div>
+                                        <div class="setting-desc">自动刷新仪表板数据</div>
+                                    </div>
+                                    <div class="toggle-switch active" onclick="toggleSwitch(this)"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-header">
+                                    <div>
+                                        <div class="setting-title">数据刷新间隔</div>
+                                        <div class="setting-desc">设置数据自动更新的时间间隔</div>
+                                    </div>
+                                    <select class="form-select" style="width: 200px;">
+                                        <option value="30">30秒</option>
+                                        <option value="60" selected>1分钟</option>
+                                        <option value="300">5分钟</option>
+                                        <option value="600">10分钟</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-header">
+                                    <div>
+                                        <div class="setting-title">启用暗黑模式</div>
+                                        <div class="setting-desc">切换到深色主题</div>
+                                    </div>
+                                    <div class="toggle-switch" onclick="toggleSwitch(this)"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 模型配置 -->
+                        <div id="model-section" class="settings-section">
+                            <div class="setting-item">
+                                <div class="setting-title" style="margin-bottom: 16px;">FIN-R1模型配置</div>
+                                <div class="form-group">
+                                    <label>模型路径</label>
+                                    <input type="text" class="form-input" value=".Fin-R1" readonly>
+                                </div>
+                                <div class="form-group">
+                                    <label>运行设备</label>
+                                    <select class="form-select">
+                                        <option value="cpu" selected>CPU</option>
+                                        <option value="cuda">CUDA (GPU)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>温度参数</label>
+                                    <input type="number" class="form-input" value="0.7" step="0.1" min="0" max="2">
+                                </div>
+                                <button class="btn btn-secondary" onclick="window.location.href='/web/pages/model-manager.html'">
+                                    <i class="fas fa-cog"></i> 高级模型管理
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 数据源配置 -->
+                        <div id="data-section" class="settings-section">
+                            <div class="setting-item">
+                                <div class="setting-header">
+                                    <div>
+                                        <div class="setting-title">Akshare数据源</div>
+                                        <div class="setting-desc">A股市场数据采集</div>
+                                    </div>
+                                    <div class="toggle-switch active" onclick="toggleSwitch(this)"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-header">
+                                    <div>
+                                        <div class="setting-title">数据缓存</div>
+                                        <div class="setting-desc">启用本地数据缓存以提高速度</div>
+                                    </div>
+                                    <div class="toggle-switch active" onclick="toggleSwitch(this)"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-title" style="margin-bottom: 16px;">API限流设置</div>
+                                <div class="form-group">
+                                    <label>请求频率限制（秒/次）</label>
+                                    <input type="number" class="form-input" value="1" step="0.1" min="0.1">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 风险参数 -->
+                        <div id="risk-section" class="settings-section">
+                            <div class="setting-item">
+                                <div class="setting-title" style="margin-bottom: 16px;">默认风险参数</div>
+                                <div class="form-group">
+                                    <label>最大回撤容忍度 (%)</label>
+                                    <input type="number" class="form-input" value="15" step="1" min="1" max="50">
+                                </div>
+                                <div class="form-group">
+                                    <label>单只股票仓位上限 (%)</label>
+                                    <input type="number" class="form-input" value="10" step="1" min="1" max="100">
+                                </div>
+                                <div class="form-group">
+                                    <label>止损线 (%)</label>
+                                    <input type="number" class="form-input" value="8" step="0.5" min="1" max="20">
+                                </div>
+                                <div class="form-group">
+                                    <label>止盈线 (%)</label>
+                                    <input type="number" class="form-input" value="20" step="1" min="5" max="100">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 通知设置 -->
+                        <div id="notification-section" class="settings-section">
+                            <div class="setting-item">
+                                <div class="setting-header">
+                                    <div>
+                                        <div class="setting-title">交易信号通知</div>
+                                        <div class="setting-desc">收到买卖信号时通知</div>
+                                    </div>
+                                    <div class="toggle-switch active" onclick="toggleSwitch(this)"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-header">
+                                    <div>
+                                        <div class="setting-title">风险预警</div>
+                                        <div class="setting-desc">触发风险阈值时通知</div>
+                                    </div>
+                                    <div class="toggle-switch active" onclick="toggleSwitch(this)"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="setting-item">
+                                <div class="setting-header">
+                                    <div>
+                                        <div class="setting-title">数据更新通知</div>
+                                        <div class="setting-desc">数据采集完成后通知</div>
+                                    </div>
+                                    <div class="toggle-switch" onclick="toggleSwitch(this)"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/web/js/global-sidebar.js"></script>
+    <script src="/web/js/settings.js"></script>
+</body>
+</html>
+

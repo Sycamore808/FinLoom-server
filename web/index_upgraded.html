@@ -587,47 +587,64 @@
                     <span>仪表板</span>
                 </a>
                 <div class="menu-item-group">
-                    <a href="#" class="menu-item has-submenu" onclick="toggleSubmenu(event, this)">
+                    <a href="#" class="menu-item has-submenu" data-menu-id="intelligent-analysis" onclick="toggleSubmenu(event, this)">
                     <i class="fas fa-brain"></i>
                         <span>智能分析</span>
                         <i class="fas fa-chevron-down submenu-arrow"></i>
                     </a>
                     <div class="submenu">
-                        <a href="/chat-mode" class="submenu-item">
+                        <a href="/web/pages/chat-mode.html" class="submenu-item">
                                 <i class="fas fa-comments"></i>
                             <span>智能对话</span>
                         </a>
-                        <a href="/strategy-mode" class="submenu-item">
+                        <a href="/web/pages/strategy-mode.html" class="submenu-item">
                                 <i class="fas fa-chart-line"></i>
                             <span>策略制定</span>
                         </a>
                     </div>
                 </div>
-                <a href="#portfolio" class="menu-item" onclick="showComingSoon(event, '投资组合')">
-                    <i class="fas fa-briefcase"></i>
-                    <span>投资组合</span>
-                    <span class="badge-soon">即将推出</span>
-                </a>
-                <a href="#backtest" class="menu-item" onclick="showComingSoon(event, '策略回测')">
-                    <i class="fas fa-history"></i>
-                    <span>策略回测</span>
-                    <span class="badge-soon">即将推出</span>
-                </a>
-                <a href="#data" class="menu-item" onclick="showComingSoon(event, '数据管理')">
+                <div class="menu-item-group">
+                    <a href="#" class="menu-item has-submenu" data-menu-id="investment-management" onclick="toggleSubmenu(event, this)">
+                        <i class="fas fa-briefcase"></i>
+                        <span>投资管理</span>
+                        <i class="fas fa-chevron-down submenu-arrow"></i>
+                    </a>
+                    <div class="submenu">
+                        <a href="/web/pages/portfolio.html" class="submenu-item">
+                            <i class="fas fa-briefcase"></i>
+                            <span>投资组合</span>
+                        </a>
+                        <a href="/web/pages/backtest.html" class="submenu-item">
+                            <i class="fas fa-history"></i>
+                            <span>策略回测</span>
+                        </a>
+                    </div>
+                </div>
+                <a href="/web/pages/data-manager.html" class="menu-item">
                     <i class="fas fa-database"></i>
                     <span>数据管理</span>
-                    <span class="badge-soon">即将推出</span>
                 </a>
-                <a href="#reports" class="menu-item" onclick="showComingSoon(event, '报告中心')">
+                <a href="/web/pages/reports.html" class="menu-item">
                     <i class="fas fa-file-alt"></i>
                     <span>报告中心</span>
-                    <span class="badge-soon">即将推出</span>
                 </a>
-                <a href="#settings" class="menu-item" onclick="showComingSoon(event, '系统设置')">
-                    <i class="fas fa-cog"></i>
-                    <span>系统设置</span>
-                    <span class="badge-soon">即将推出</span>
-                </a>
+                <div class="menu-item-group">
+                    <a href="#" class="menu-item has-submenu" data-menu-id="system-config" onclick="toggleSubmenu(event, this)">
+                        <i class="fas fa-cog"></i>
+                        <span>系统配置</span>
+                        <i class="fas fa-chevron-down submenu-arrow"></i>
+                    </a>
+                    <div class="submenu">
+                        <a href="/web/pages/settings.html" class="submenu-item">
+                            <i class="fas fa-sliders-h"></i>
+                            <span>系统设置</span>
+                        </a>
+                        <a href="/web/pages/model-manager.html" class="submenu-item">
+                            <i class="fas fa-brain"></i>
+                            <span>模型管理</span>
+                        </a>
+                    </div>
+                </div>
             </nav>
         </aside>
 
@@ -825,21 +842,7 @@
     <script src="/web/js/core/aue3-core.js"></script>
     <script src="/web/js/core/api-service.js"></script>
     <script src="/web/js/shared/components.js"></script>
+    <script src="/web/js/global-sidebar.js"></script>
     <script src="/web/js/dashboard/dashboard.js"></script>
-
-    <script>
-        function toggleSubmenu(event, element) {
-            event.preventDefault();
-            element.classList.toggle('open');
-        }
-
-        // 页面加载时默认展开智能分析菜单
-        document.addEventListener('DOMContentLoaded', function() {
-            const analysisMenu = document.querySelector('.menu-item.has-submenu');
-            if (analysisMenu) {
-                analysisMenu.classList.add('open');
-            }
-        });
-    </script>
 </body>
 </html>

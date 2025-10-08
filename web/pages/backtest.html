@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>策略回测 - FinLoom</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/web/css/common.css">
+    <style>
+        .backtest-layout {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 24px;
+        }
+        
+        .config-panel {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            height: fit-content;
+            position: sticky;
+            top: 24px;
+        }
+        
+        .results-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        
+        .metric-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        
+        .metric-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        
+        .metric-label {
+            font-size: 13px;
+            color: #6b7280;
+            margin-bottom: 8px;
+        }
+        
+        .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+        
+        .metric-value.positive { color: #10b981; }
+        .metric-value.negative { color: #ef4444; }
+        
+        .chart-container {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        
+        .trades-table {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        
+        @media (max-width: 1024px) {
+            .backtest-layout {
+                grid-template-columns: 1fr;
+            }
+            .config-panel {
+                position: relative;
+                top: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="logo">
+                    <i class="fas fa-chart-line"></i>
+                    <span>FinLoom</span>
+                </h1>
+            </div>
+            <nav class="sidebar-menu">
+                <a href="/web/index_upgraded.html" class="menu-item">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>仪表板</span>
+                </a>
+                <a href="/web/pages/portfolio.html" class="menu-item">
+                    <i class="fas fa-briefcase"></i>
+                    <span>投资组合</span>
+                </a>
+                <a href="/web/pages/backtest.html" class="menu-item active">
+                    <i class="fas fa-history"></i>
+                    <span>策略回测</span>
+                </a>
+                <a href="/web/pages/data-manager.html" class="menu-item">
+                    <i class="fas fa-database"></i>
+                    <span>数据管理</span>
+                </a>
+                <a href="/web/pages/reports.html" class="menu-item">
+                    <i class="fas fa-file-alt"></i>
+                    <span>报告中心</span>
+                </a>
+                <a href="/web/pages/settings.html" class="menu-item">
+                    <i class="fas fa-cog"></i>
+                    <span>系统设置</span>
+                </a>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <h2>策略回测</h2>
+                    <p class="header-subtitle">Strategy Backtesting</p>
+                </div>
+                <div class="header-right">
+                    <button class="btn btn-secondary" onclick="loadHistoryTests()">
+                        <i class="fas fa-clock-rotate-left"></i>
+                        历史回测
+                    </button>
+                </div>
+            </header>
+
+            <div class="content">
+                <div class="backtest-layout">
+                    <!-- 配置面板 -->
+                    <div class="config-panel">
+                        <h3 style="margin-bottom: 20px;">回测配置</h3>
+                        
+                        <div class="form-group">
+                            <label>策略类型</label>
+                            <select id="strategy-type" class="form-select">
+                                <option value="ma_crossover">移动平均交叉</option>
+                                <option value="rsi">RSI超买超卖</option>
+                                <option value="bollinger">布林带突破</option>
+                                <option value="macd">MACD信号</option>
+                                <option value="custom">自定义策略</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>股票代码</label>
+                            <input type="text" id="stock-symbol" class="form-input" placeholder="例如: 600519" value="600519">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>回测时间范围</label>
+                            <input type="date" id="start-date" class="form-input" value="2023-01-01">
+                            <input type="date" id="end-date" class="form-input" value="2024-12-31" style="margin-top: 8px;">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>初始资金 (元)</label>
+                            <input type="number" id="initial-capital" class="form-input" value="1000000" step="10000">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>手续费率 (%)</label>
+                            <input type="number" id="commission-rate" class="form-input" value="0.03" step="0.01">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>滑点 (元)</label>
+                            <input type="number" id="slippage" class="form-input" value="0.01" step="0.01">
+                        </div>
+                        
+                        <button class="btn btn-primary" style="width: 100%; margin-top: 20px;" onclick="runBacktest()">
+                            <i class="fas fa-play"></i>
+                            开始回测
+                        </button>
+                    </div>
+
+                    <!-- 结果面板 -->
+                    <div class="results-panel">
+                        <div id="results-container" style="display: none;">
+                            <!-- 关键指标卡片 -->
+                            <div class="metric-cards">
+                                <div class="metric-card">
+                                    <div class="metric-label">总收益率</div>
+                                    <div class="metric-value positive" id="total-return">--</div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-label">年化收益率</div>
+                                    <div class="metric-value" id="annual-return">--</div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-label">夏普比率</div>
+                                    <div class="metric-value" id="sharpe-ratio">--</div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-label">最大回撤</div>
+                                    <div class="metric-value negative" id="max-drawdown">--</div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-label">胜率</div>
+                                    <div class="metric-value" id="win-rate">--</div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-label">盈亏比</div>
+                                    <div class="metric-value" id="profit-factor">--</div>
+                                </div>
+                            </div>
+
+                            <!-- 资金曲线图表 -->
+                            <div class="chart-container">
+                                <h3 style="margin-bottom: 16px;">资金曲线</h3>
+                                <canvas id="equity-curve-chart" height="300"></canvas>
+                            </div>
+
+                            <!-- 交易记录 -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3>交易记录</h3>
+                                    <span id="trade-count" style="color: #6b7280;">共 0 笔交易</span>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-container">
+                                        <table class="data-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>时间</th>
+                                                    <th>操作</th>
+                                                    <th>价格</th>
+                                                    <th>数量</th>
+                                                    <th>金额</th>
+                                                    <th>手续费</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="trades-tbody">
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 空状态 -->
+                        <div id="empty-state" class="card" style="text-align: center; padding: 60px 20px;">
+                            <i class="fas fa-chart-line" style="font-size: 64px; color: #cbd5e0; margin-bottom: 20px;"></i>
+                            <h3 style="color: #4a5568; margin-bottom: 12px;">开始您的第一次回测</h3>
+                            <p style="color: #718096;">在左侧配置回测参数，然后点击"开始回测"按钮</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/web/js/global-sidebar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="/web/js/backtest.js"></script>
+</body>
+</html>
+

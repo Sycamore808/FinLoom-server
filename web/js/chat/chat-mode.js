@@ -10,32 +10,71 @@ const ChatEffects = {
     async sendMessage(payload, state, app) {
         const { message, conversationId } = payload;
         
+        // 显示分析中提示
+        let statusMsg = null;
         try {
-            // 实际应该调用真实API
-            // const response = await FinLoomAPI.chat.send(message, conversationId);
+            statusMsg = document.createElement('div');
+            statusMsg.className = 'system-status-message';
+            statusMsg.innerHTML = `
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; margin: 16px 0; text-align: center; animation: pulse 2s infinite;">
+                    <i class="fas fa-brain fa-spin" style="font-size: 28px; margin-bottom: 8px;"></i>
+                    <div style="font-size: 18px; font-weight: 600;">FIN-R1 正在分析中...</div>
+                    <div style="font-size: 14px; opacity: 0.9; margin-top: 4px;">预计需要 15-30 秒，请稍候</div>
+                </div>
+            `;
+            const messagesContainer = document.querySelector('.chat-messages') || document.querySelector('.messages-container');
+            if (messagesContainer) {
+                messagesContainer.appendChild(statusMsg);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+        } catch (e) {
+            console.log('无法显示状态提示');
+        }
+        
+        try {
+            // 调用真实的后端API
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: message,
+                    conversation_id: conversationId || ''
+                })
+            });
             
-            // 模拟API调用
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // 移除状态提示
+            if (statusMsg) statusMsg.remove();
             
-            // 模拟AI回复
-            const responses = [
-                '根据当前市场情况，建议关注科技板块的龙头企业，它们在近期表现出较强的抗跌性。',
-                '从技术面来看，该股票已经突破了关键阻力位，短期内有望继续上涨。建议设置止损位以控制风险。',
-                '这是一个很好的问题。我建议您关注公司的基本面数据，特别是营收增长率和净利润率的变化趋势。',
-                '市场情绪整体偏谨慎，建议采取分批建仓的策略，不要一次性投入过多资金。',
-                '从历史数据来看，该策略在牛市中表现优异，但在震荡市中需要适当调整参数。'
-            ];
+            if (!response.ok) {
+                throw new Error(`API请求失败: ${response.status}`);
+            }
             
-            const reply = responses[Math.floor(Math.random() * responses.length)];
+            const result = await response.json();
             
-            return {
-                success: true,
-                reply: reply,
-                timestamp: new Date().toISOString()
-            };
+            if (result.status === 'success') {
+                return {
+                    success: true,
+                    reply: result.response,
+                    timestamp: new Date().toISOString()
+                };
+            } else {
+                throw new Error(result.response || '分析失败');
+            }
         } catch (error) {
             console.error('发送消息失败:', error);
-            throw error;
+            // 降级到模拟回复
+            const fallbackResponses = [
+                '抱歉，我暂时无法连接到分析服务。根据市场情况，建议您关注蓝筹股并保持谨慎。',
+                '系统正在处理您的请求，请稍后再试。',
+                '网络连接异常，请检查后端服务是否正常运行。'
+            ];
+            return {
+                success: false,
+                reply: fallbackResponses[0] + '\n\n错误详情: ' + error.message,
+                timestamp: new Date().toISOString()
+            };
         }
     },
 
@@ -541,6 +580,12 @@ window.chatApp = chatApp;
 window.sendQuickMessage = (message) => {
     chatApp.dispatch('quickAsk', { question: message });
 };
+
+
+
+
+
+
 
 
 

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投资组合管理 - FinLoom</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/web/css/common.css">
+    <link rel="stylesheet" href="/web/css/portfolio.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="logo">
+                    <i class="fas fa-chart-line"></i>
+                    <span>FinLoom</span>
+                </h1>
+            </div>
+            <nav class="sidebar-menu">
+                <a href="/web/index_upgraded.html" class="menu-item">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>仪表板</span>
+                </a>
+                <a href="/web/pages/portfolio.html" class="menu-item active">
+                    <i class="fas fa-briefcase"></i>
+                    <span>投资组合</span>
+                </a>
+                <a href="/web/pages/backtest.html" class="menu-item">
+                    <i class="fas fa-history"></i>
+                    <span>策略回测</span>
+                </a>
+                <a href="/web/pages/data-manager.html" class="menu-item">
+                    <i class="fas fa-database"></i>
+                    <span>数据管理</span>
+                </a>
+                <a href="/web/pages/reports.html" class="menu-item">
+                    <i class="fas fa-file-alt"></i>
+                    <span>报告中心</span>
+                </a>
+                <a href="/web/pages/settings.html" class="menu-item">
+                    <i class="fas fa-cog"></i>
+                    <span>系统设置</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 顶部栏 -->
+            <header class="header">
+                <div class="header-left">
+                    <h2>投资组合管理</h2>
+                    <p class="header-subtitle">Portfolio Management</p>
+                </div>
+                <div class="header-right">
+                    <button class="btn btn-secondary" onclick="refreshData()">
+                        <i class="fas fa-sync-alt"></i>
+                        刷新数据
+                    </button>
+                    <button class="btn btn-primary" onclick="showOptimizeModal()">
+                        <i class="fas fa-magic"></i>
+                        智能优化
+                    </button>
+                </div>
+            </header>
+
+            <!-- 内容区域 -->
+            <div class="content">
+                <!-- 组合概览卡片 -->
+                <div class="overview-cards">
+                    <div class="card-metric">
+                        <div class="metric-header">
+                            <span class="metric-label">总资产</span>
+                            <i class="fas fa-wallet metric-icon"></i>
+                        </div>
+                        <div class="metric-value" id="total-value">¥0.00</div>
+                        <div class="metric-change positive" id="daily-change">
+                            <i class="fas fa-arrow-up"></i>
+                            +0.00%
+                        </div>
+                    </div>
+                    
+                    <div class="card-metric">
+                        <div class="metric-header">
+                            <span class="metric-label">总收益</span>
+                            <i class="fas fa-chart-line metric-icon"></i>
+                        </div>
+                        <div class="metric-value" id="total-return">¥0.00</div>
+                        <div class="metric-change positive" id="return-rate">
+                            <i class="fas fa-arrow-up"></i>
+                            +0.00%
+                        </div>
+                    </div>
+                    
+                    <div class="card-metric">
+                        <div class="metric-header">
+                            <span class="metric-label">持仓数量</span>
+                            <i class="fas fa-list metric-icon"></i>
+                        </div>
+                        <div class="metric-value" id="positions-count">0</div>
+                        <div class="metric-sub">个股票</div>
+                    </div>
+                    
+                    <div class="card-metric">
+                        <div class="metric-header">
+                            <span class="metric-label">可用资金</span>
+                            <i class="fas fa-coins metric-icon"></i>
+                        </div>
+                        <div class="metric-value" id="available-cash">¥0.00</div>
+                        <div class="metric-sub">现金比例 15%</div>
+                    </div>
+                </div>
+
+                <!-- 资产配置图表 -->
+                <div class="charts-row">
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h3>资产配置</h3>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="asset-allocation-chart" height="250"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <h3>行业分布</h3>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="sector-allocation-chart" height="250"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 持仓明细 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>持仓明细</h3>
+                        <div class="card-tools">
+                            <button class="btn-icon" onclick="exportPositions()">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table" id="positions-table">
+                                <thead>
+                                    <tr>
+                                        <th>股票代码</th>
+                                        <th>股票名称</th>
+                                        <th>持仓数量</th>
+                                        <th>成本价</th>
+                                        <th>现价</th>
+                                        <th>市值</th>
+                                        <th>盈亏</th>
+                                        <th>盈亏率</th>
+                                        <th>权重</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="positions-tbody">
+                                    <tr>
+                                        <td colspan="10" class="loading-cell">
+                                            <i class="fas fa-spinner fa-spin"></i> 加载中...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 智能优化弹窗 -->
+    <div class="modal" id="optimize-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>智能组合优化</h3>
+                <button class="btn-close" onclick="closeModal('optimize-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>目标收益率 (%)</label>
+                    <input type="number" id="target-return" class="form-input" value="15" min="0" max="100" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label>风险偏好</label>
+                    <select id="risk-tolerance" class="form-select">
+                        <option value="conservative">保守型 (低风险)</option>
+                        <option value="moderate" selected>稳健型 (中风险)</option>
+                        <option value="aggressive">激进型 (高风险)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>优化目标</label>
+                    <select id="optimize-target" class="form-select">
+                        <option value="sharpe">夏普比率最大化</option>
+                        <option value="return">收益最大化</option>
+                        <option value="risk">风险最小化</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('optimize-modal')">取消</button>
+                <button class="btn btn-primary" onclick="startOptimize()">
+                    <i class="fas fa-magic"></i> 开始优化
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 优化结果弹窗 -->
+    <div class="modal" id="optimize-result-modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>优化建议</h3>
+                <button class="btn-close" onclick="closeModal('optimize-result-modal')">&times;</button>
+            </div>
+            <div class="modal-body" id="optimize-result-body">
+                <!-- 结果将动态填充 -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('optimize-result-modal')">关闭</button>
+                <button class="btn btn-primary" onclick="applyOptimization()">
+                    <i class="fas fa-check"></i> 应用建议
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/web/js/global-sidebar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="/web/js/portfolio.js"></script>
+</body>
+</html>
+

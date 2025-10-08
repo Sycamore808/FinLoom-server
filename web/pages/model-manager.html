@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIN-R1模型管理 - FinLoom</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-back {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+        }
+
+        .btn-back:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateX(-4px);
+        }
+
+        .content {
+            padding: 32px;
+        }
+
+        .section {
+            margin-bottom: 32px;
+            padding: 24px;
+            background: #f8f9fa;
+            border-radius: 16px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #2d3748;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title i {
+            color: #667eea;
+        }
+
+        .status-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .status-row:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .status-value {
+            color: #2d3748;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .system-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .info-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            text-align: center;
+        }
+
+        .info-card .icon {
+            font-size: 32px;
+            color: #667eea;
+            margin-bottom: 12px;
+        }
+
+        .info-card .label {
+            font-size: 14px;
+            color: #718096;
+            margin-bottom: 8px;
+        }
+
+        .info-card .value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2d3748;
+        }
+
+        .disk-list {
+            display: grid;
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .disk-item {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .disk-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .disk-label {
+            font-weight: 700;
+            font-size: 18px;
+            color: #2d3748;
+        }
+
+        .disk-free {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .disk-progress {
+            height: 12px;
+            background: #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .disk-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+        }
+
+        .model-list {
+            display: grid;
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .model-item {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .model-info h3 {
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+
+        .model-meta {
+            font-size: 14px;
+            color: #718096;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border 0.3s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+
+        .loading i {
+            font-size: 48px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .alert-info {
+            background: #e3f2fd;
+            color: #1565c0;
+            border-left: 4px solid #1976d2;
+        }
+
+        .alert-warning {
+            background: #fff3e0;
+            color: #e65100;
+            border-left: 4px solid #f57c00;
+        }
+
+        .alert-danger {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #d32f2f;
+        }
+
+        .issues-list {
+            margin-top: 12px;
+        }
+
+        .issue-item {
+            padding: 8px 0;
+            color: #e65100;
+            display: flex;
+            align-items: start;
+            gap: 8px;
+        }
+
+        .issue-item i {
+            margin-top: 4px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2d3748;
+        }
+
+        .btn-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #718096;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .btn-close:hover {
+            color: #2d3748;
+        }
+
+        .progress-container {
+            margin: 20px 0;
+        }
+
+        .progress-bar-outer {
+            height: 24px;
+            background: #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar-inner {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 8px;
+            color: #718096;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <i class="fas fa-brain"></i>
+                FIN-R1模型管理
+            </h1>
+            <button class="btn-back" onclick="window.location.href='/web/index_upgraded.html'">
+                <i class="fas fa-arrow-left"></i>
+                <span>返回仪表板</span>
+            </button>
+        </div>
+
+        <div class="content">
+            <!-- 当前模型状态 -->
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-info-circle"></i>
+                    当前模型状态
+                </div>
+                <div class="status-card" id="model-status">
+                    <div class="loading">
+                        <i class="fas fa-spinner"></i>
+                        <p>加载中...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 系统配置检测 -->
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-desktop"></i>
+                    系统配置检测
+                </div>
+                <div id="system-requirements">
+                    <div class="loading">
+                        <i class="fas fa-spinner"></i>
+                        <p>检测中...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 可用磁盘空间 -->
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-hdd"></i>
+                    可用磁盘空间
+                </div>
+                <div class="disk-list" id="disk-list">
+                    <div class="loading">
+                        <i class="fas fa-spinner"></i>
+                        <p>加载中...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 本地模型搜索 -->
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-search"></i>
+                    本地模型搜索
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="searchLocalModels()">
+                        <i class="fas fa-search"></i>
+                        搜索本地模型
+                    </button>
+                    <button class="btn btn-secondary" onclick="showCustomSearchModal()">
+                        <i class="fas fa-folder-open"></i>
+                        自定义搜索路径
+                    </button>
+                </div>
+                <div class="model-list" id="local-models">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        点击"搜索本地模型"按钮开始搜索您电脑上已有的FIN-R1模型
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模型下载/配置 -->
+            <div class="section">
+                <div class="section-title">
+                    <i class="fas fa-download"></i>
+                    模型下载与配置
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="showDownloadModal()">
+                        <i class="fas fa-download"></i>
+                        下载新模型
+                    </button>
+                    <button class="btn btn-secondary" onclick="showManualConfigModal()">
+                        <i class="fas fa-cog"></i>
+                        手动配置模型路径
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 下载模型弹窗 -->
+    <div class="modal" id="download-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">下载FIN-R1模型</h2>
+                <button class="btn-close" onclick="closeModal('download-modal')">&times;</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">选择安装磁盘</label>
+                <select class="form-select" id="download-disk">
+                    <option value="">加载中...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">安装路径</label>
+                <input type="text" class="form-input" id="download-path" placeholder="例如: C:\AI_Models\Fin-R1">
+            </div>
+            <div class="form-group">
+                <label class="form-label">模型来源</label>
+                <select class="form-select" id="download-source">
+                    <option value="modelscope">ModelScope（推荐，国内速度快）</option>
+                    <option value="huggingface">Hugging Face</option>
+                </select>
+            </div>
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>注意：</strong>模型大小约10GB，下载可能需要较长时间，请确保网络稳定。
+            </div>
+            <div class="progress-container" id="download-progress" style="display: none;">
+                <div class="progress-bar-outer">
+                    <div class="progress-bar-inner" id="download-progress-bar">0%</div>
+                </div>
+                <div class="progress-text" id="download-progress-text">准备下载...</div>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="startDownload()" id="btn-start-download">
+                    <i class="fas fa-download"></i>
+                    开始下载
+                </button>
+                <button class="btn btn-secondary" onclick="closeModal('download-modal')">
+                    <i class="fas fa-times"></i>
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 手动配置弹窗 -->
+    <div class="modal" id="manual-config-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">手动配置模型路径</h2>
+                <button class="btn-close" onclick="closeModal('manual-config-modal')">&times;</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">模型路径</label>
+                <input type="text" class="form-input" id="manual-model-path" placeholder="请输入FIN-R1模型的完整路径">
+            </div>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                请确保路径中包含有效的FIN-R1模型文件（至少包含config.json）
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="configureManualPath()">
+                    <i class="fas fa-check"></i>
+                    确认配置
+                </button>
+                <button class="btn btn-secondary" onclick="closeModal('manual-config-modal')">
+                    <i class="fas fa-times"></i>
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自定义搜索路径弹窗 -->
+    <div class="modal" id="custom-search-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">自定义搜索路径</h2>
+                <button class="btn-close" onclick="closeModal('custom-search-modal')">&times;</button>
+            </div>
+            <div class="form-group">
+                <label class="form-label">搜索路径（每行一个）</label>
+                <textarea class="form-input" id="custom-search-paths" rows="6" placeholder="例如:&#10;C:\AI_Models&#10;D:\Downloads&#10;C:\Users\YourName\Documents"></textarea>
+            </div>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                输入您想要搜索的目录路径，系统将在这些目录中递归搜索FIN-R1模型
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="searchCustomPaths()">
+                    <i class="fas fa-search"></i>
+                    开始搜索
+                </button>
+                <button class="btn btn-secondary" onclick="closeModal('custom-search-modal')">
+                    <i class="fas fa-times"></i>
+                    取消
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/web/js/global-sidebar.js"></script>
+    <script src="/web/js/model-manager.js"></script>
+</body>
+</html>
+

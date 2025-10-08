@@ -1,0 +1,125 @@
+# FIN-R1 模型配置文件
+# 量化投资智能分析大语言模型配置
+
+# 模型路径和基础配置
+model:
+  # 模型本地路径（相对于项目根目录）
+  model_path: ".Fin-R1"  # 模型将自动下载到项目根目录的.Fin-R1文件夹
+  
+  # 设备配置
+  device: "cpu"  # 使用CPU进行推理，如有GPU可改为"cuda"
+  
+  # 批处理大小
+  batch_size: 1  # 保持为1以确保稳定性
+  
+  # 生成参数
+  max_length: 2048  # 最大输入长度
+  temperature: 0.7  # 温度参数，控制输出的随机性(0.1-1.0)
+  top_p: 0.9  # nucleus sampling参数
+  top_k: 50  # top-k sampling参数
+  do_sample: false  # 是否使用采样，false表示使用贪心解码（更快）
+  repetition_penalty: 1.1  # 重复惩罚系数
+
+# 提示词模板
+prompts:
+  # 投资分析提示词
+  investment_analysis: |
+    作为专业的金融分析AI，请分析以下投资需求：
+    
+    用户需求：{user_input}
+    投资金额：{investment_amount}
+    风险偏好：{risk_tolerance}
+    投资期限：{investment_horizon}
+    投资目标：{investment_goals}
+    约束条件：{constraints}
+    
+    请提供专业的投资建议，包括：
+    1. 策略推荐
+    2. 风险评估
+    3. 行业配置建议
+    4. 注意事项
+  
+  # 市场分析提示词
+  market_analysis: |
+    请分析当前市场环境，并给出投资建议。
+    
+    市场数据：{market_data}
+    分析维度：{analysis_dimensions}
+  
+  # 组合优化提示词
+  portfolio_optimization: |
+    请对以下投资组合进行优化分析：
+    
+    当前持仓：{current_holdings}
+    风险预算：{risk_budget}
+    优化目标：{optimization_goals}
+
+# 性能配置
+performance:
+  # 超时设置（秒）
+  timeout: 30  # 单次推理超时时间
+  
+  # 重试配置
+  max_retries: 3  # 失败后最大重试次数
+  retry_delay: 1  # 重试延迟（秒）
+  
+  # 缓存配置
+  enable_cache: true  # 是否启用响应缓存
+  cache_ttl: 3600  # 缓存有效期（秒）
+
+# 安全配置
+safety:
+  # 风险控制参数
+  max_position_size: 0.3  # 单一持仓最大比例
+  risk_warning_threshold: 0.15  # 风险警告阈值
+  require_diversification: true  # 是否要求分散投资
+  
+  # 内容过滤
+  enable_content_filter: true  # 是否启用内容过滤
+  forbidden_keywords: []  # 禁止关键词列表
+
+# 日志配置
+logging:
+  # 日志级别: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+  
+  # 是否记录详细日志
+  verbose: false  # 开发调试时可设为true
+  
+  # 是否保存推理日志
+  save_inference_logs: true  # 保存FIN-R1的推理日志
+  log_file: "logs/fin_r1_integration.log"
+
+# 降级策略
+fallback:
+  # 当FIN-R1不可用时的降级策略
+  enable_rule_based: true  # 启用基于规则的分析
+  enable_module4_fallback: true  # 启用模块4市场分析API作为备选
+  
+  # 降级提示
+  show_fallback_notice: true  # 是否显示降级提示
+  fallback_message: "FIN-R1模型暂时不可用，使用规则引擎分析"
+
+# 功能开关
+features:
+  # 启用的功能
+  enable_sentiment_analysis: true  # 情感分析
+  enable_risk_assessment: true  # 风险评估
+  enable_portfolio_recommendation: true  # 组合推荐
+  enable_market_prediction: false  # 市场预测（实验性功能）
+
+# API集成配置
+integration:
+  # 与其他模块的集成
+  module_01_data: true  # 集成数据管道模块
+  module_02_features: true  # 集成特征工程模块
+  module_04_analysis: true  # 集成市场分析模块
+  module_05_risk: true  # 集成风险管理模块
+  module_09_backtest: true  # 集成回测模块
+
+# 版本信息
+version: "1.0.0"
+last_updated: "2024-10-06"
+description: "FIN-R1金融推理模型集成配置文件"
+
+

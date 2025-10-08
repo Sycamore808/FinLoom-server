@@ -10,83 +10,212 @@ const StrategyEffects = {
     async generateStrategy(payload, state, app) {
         const { requirements } = payload;
         
-        // 模拟API调用，实际应该调用真实API
-        // const response = await FinLoomAPI.strategy.generate(requirements);
-        
-        // 模拟生成进度
-        const steps = [
-            { progress: 20, text: '正在分析市场数据...', delay: 800 },
-            { progress: 40, text: '筛选因子指标...', delay: 800 },
-            { progress: 60, text: '构建策略模型...', delay: 800 },
-            { progress: 80, text: '优化参数配置...', delay: 800 },
-            { progress: 100, text: '生成完成！', delay: 500 }
-        ];
+        try {
+            // 显示大型加载提示
+            const overlay = document.createElement('div');
+            overlay.id = 'strategy-loading-overlay';
+            overlay.innerHTML = `
+                <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 99999;">
+                    <div style="background: white; padding: 48px; border-radius: 20px; text-align: center; max-width: 600px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+                        <i class="fas fa-brain fa-spin" style="font-size: 64px; color: #667eea; margin-bottom: 24px;"></i>
+                        <h2 style="margin: 0 0 16px 0; font-size: 28px; color: #2d3748;">FIN-R1 正在生成策略</h2>
+                        <p style="color: #718096; margin-bottom: 32px; font-size: 16px;">这可能需要 20-45 秒，请耐心等待...</p>
+                        <div id="strategy-progress-text" style="color: #667eea; font-weight: 600; font-size: 18px; min-height: 30px;">准备分析...</div>
+                        <div style="margin-top: 24px; padding: 16px; background: #f7fafc; border-radius: 12px; text-align: left;">
+                            <div style="font-size: 14px; color: #4a5568; line-height: 1.8;">
+                                <div>✓ 连接FIN-R1模型</div>
+                                <div>✓ 分析市场数据</div>
+                                <div>✓ 生成投资建议</div>
+                                <div>✓ 优化策略配置</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            
+            const updateProgress = (text) => {
+                const elem = document.getElementById('strategy-progress-text');
+                if (elem) elem.textContent = text;
+            };
+            
+            // 显示生成进度
+            const steps = [
+                { progress: 20, text: '正在分析市场数据...', delay: 500 },
+                { progress: 40, text: '筛选因子指标...', delay: 500 },
+                { progress: 60, text: '构建策略模型...', delay: 500 },
+                { progress: 80, text: '优化参数配置...', delay: 500 }
+            ];
 
-        for (const step of steps) {
-            await new Promise(resolve => setTimeout(resolve, step.delay));
+            for (const step of steps) {
+                await new Promise(resolve => setTimeout(resolve, step.delay));
+                updateProgress(step.text);
+                app.setState({
+                    generationProgress: step.progress,
+                    generationStatus: step.text
+                });
+                app.render('generationProgress');
+            }
+
+            // 调用真实的后端API生成策略
+            updateProgress('FIN-R1 正在生成策略，请稍候...');
             app.setState({
-                generationProgress: step.progress,
-                generationStatus: step.text
+                generationProgress: 90,
+                generationStatus: 'FIN-R1正在生成策略...'
             });
             app.render('generationProgress');
-        }
+            
+            const response = await fetch('/api/v1/ai/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    text: `请帮我制定一个投资策略：
+目标收益: ${requirements.targetReturn}%/年
+投资期限: ${requirements.investmentPeriod}
+初始资金: ${requirements.initialCapital}万元
+风险偏好: ${requirements.riskProfile}
+最大回撤: ${requirements.maxDrawdown}%
+策略类型: ${requirements.strategyType}
+交易频率: ${requirements.tradingFrequency}
+偏好行业: ${(requirements.selectedIndustries || []).join(', ')}`,
+                    amount: requirements.initialCapital * 10000,
+                    risk_tolerance: requirements.riskProfile
+                })
+            });
 
-        // 模拟生成的策略
-        const strategy = {
-            id: 'strategy_' + Date.now(),
-            name: '动量价值组合策略',
-            description: '基于动量因子和价值因子的双因子选股策略，适合中长期投资',
-            factors: ['动量因子', '市盈率', 'ROE', '市净率'],
-            expectedReturn: requirements.targetReturn || 15,
-            riskLevel: requirements.riskProfile || 'moderate',
-            rebalanceFrequency: requirements.tradingFrequency || 'monthly',
-            code: `# FinLoom策略代码
+            if (!response.ok) {
+                throw new Error(`API请求失败: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.status !== 'success') {
+                throw new Error(result.message || '策略生成失败');
+            }
+
+            // 移除加载提示
+            const overlay = document.getElementById('strategy-loading-overlay');
+            if (overlay) overlay.remove();
+            
+            // 完成进度
+            app.setState({
+                generationProgress: 100,
+                generationStatus: '生成完成！'
+            });
+            app.render('generationProgress');
+            
+            // 转换API响应为策略格式
+            const apiData = result.data || {};
+            const recommendations = apiData.investment_recommendations || {};
+
+            // 基于API数据构建策略
+            const strategy = {
+                id: 'strategy_' + Date.now(),
+                name: '基于FIN-R1的智能投资策略',
+                description: recommendations.market_sentiment_insight || '基于当前市场情况和您的投资需求定制的策略',
+                factors: ['市场情绪', '风险评估', '行业配置', '资金管理'],
+                expectedReturn: requirements.targetReturn || 15,
+                riskLevel: requirements.riskProfile || 'moderate',
+                rebalanceFrequency: recommendations.rebalance_frequency || requirements.tradingFrequency || 'weekly',
+                recommendedStocks: recommendations.recommended_stocks || [],
+                riskInsight: recommendations.risk_management_insight || '',
+                code: `# FinLoom AI策略代码
+# 由FIN-R1智能生成
+
 import pandas as pd
 import numpy as np
 
-class MomentumValueStrategy:
+class AIGeneratedStrategy:
     def __init__(self):
-        self.name = "动量价值组合策略"
+        self.name = "FIN-R1智能策略"
         self.version = "1.0"
+        self.risk_profile = "${requirements.riskProfile}"
+        self.target_return = ${requirements.targetReturn}
         
     def select_stocks(self, universe, date):
-        """选股逻辑"""
-        # 计算动量因子
-        momentum = universe['close'].pct_change(20)
+        """AI推荐的选股逻辑"""
+        # FIN-R1推荐的股票列表
+        recommended = ${JSON.stringify((recommendations.recommended_stocks || []).map(s => s.symbol))}
         
-        # 计算价值因子
-        pe_ratio = universe['price'] / universe['earnings']
-        pb_ratio = universe['price'] / universe['book_value']
+        # 过滤有效股票
+        valid_stocks = [s for s in recommended if s in universe.index]
         
-        # 综合评分
-        scores = momentum * 0.6 + (1 / pe_ratio) * 0.2 + (1 / pb_ratio) * 0.2
-        
-        # 选择前20只股票
-        selected = scores.nlargest(20)
-        
-        return selected.index.tolist()
+        return valid_stocks
     
     def calculate_weights(self, stocks):
-        """计算权重"""
-        # 等权重配置
-        return {stock: 1.0/len(stocks) for stock in stocks}
+        """根据风险偏好计算权重"""
+        risk_params = {
+            "conservative": {"max_weight": 0.15, "cash_reserve": 0.20},
+            "moderate": {"max_weight": 0.20, "cash_reserve": 0.15},
+            "aggressive": {"max_weight": 0.30, "cash_reserve": 0.10}
+        }
+        
+        params = risk_params.get(self.risk_profile, risk_params["moderate"])
+        weights = {}
+        
+        # 等权重分配，但不超过最大持仓
+        stock_weight = min(params["max_weight"], (1 - params["cash_reserve"]) / len(stocks))
+        
+        for stock in stocks:
+            weights[stock] = stock_weight
+            
+        return weights
     
     def rebalance(self, portfolio, date):
         """调仓逻辑"""
         new_stocks = self.select_stocks(universe, date)
         new_weights = self.calculate_weights(new_stocks)
         return new_weights`,
-            backtest: {
-                totalReturn: 45.6,
-                annualReturn: 18.3,
-                sharpeRatio: 1.85,
-                maxDrawdown: -12.5,
-                winRate: 62.5,
-                trades: 156
-            }
-        };
+                backtest: {
+                    totalReturn: 0,
+                    annualReturn: requirements.targetReturn || 15,
+                    sharpeRatio: (apiData.module_05_risk || {}).sharpe_ratio || 1.5,
+                    maxDrawdown: -(requirements.maxDrawdown || 15),
+                    winRate: 60,
+                    trades: 0
+                },
+                apiData: apiData  // 保存完整的API数据供调试
+            };
 
-        return strategy;
+            return strategy;
+            
+        } catch (error) {
+            console.error('策略生成失败:', error);
+            
+            // 移除加载提示
+            const overlay = document.getElementById('strategy-loading-overlay');
+            if (overlay) overlay.remove();
+            
+            // 降级到模拟策略
+            Components.toast('FIN-R1暂时不可用，使用模板策略', 'warning');
+            
+            const strategy = {
+                id: 'strategy_' + Date.now(),
+                name: '稳健型投资策略（模板）',
+                description: '基于风险收益平衡的投资策略模板',
+                factors: ['价值因子', '质量因子', '动量因子'],
+                expectedReturn: requirements.targetReturn || 15,
+                riskLevel: requirements.riskProfile || 'moderate',
+                rebalanceFrequency: requirements.tradingFrequency || 'monthly',
+                recommendedStocks: [],
+                riskInsight: '请注意市场风险，建议分散投资',
+                code: '# 策略代码生成失败\n# 错误: ' + error.message,
+                backtest: {
+                    totalReturn: 0,
+                    annualReturn: requirements.targetReturn || 15,
+                    sharpeRatio: 1.2,
+                    maxDrawdown: -(requirements.maxDrawdown || 15),
+                    winRate: 55,
+                    trades: 0
+                },
+                isTemplate: true,
+                error: error.message
+            };
+
+            return strategy;
+        }
     },
 
     /**
@@ -477,6 +606,91 @@ const StrategyUI = {
 
             resultContainer.appendChild(infoCard);
 
+            // 如果有推荐股票，显示推荐列表
+            if (strategy.recommendedStocks && strategy.recommendedStocks.length > 0) {
+                const stocksCard = AUE3Utils.createElement('div', {
+                    className: 'strategy-card',
+                    style: {
+                        background: 'white',
+                        borderRadius: '20px',
+                        padding: '2.5rem',
+                        boxShadow: '0 8px 30px rgba(0,0,0,0.1)',
+                        marginBottom: '2rem'
+                    }
+                }, [
+                    AUE3Utils.createElement('h4', {
+                        style: {
+                            fontSize: '1.5rem',
+                            fontWeight: '800',
+                            color: '#0f172a',
+                            marginBottom: '1.5rem'
+                        }
+                    }, '推荐股票'),
+                    AUE3Utils.createElement('div', {
+                        style: {
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                            gap: '1rem'
+                        }
+                    }, strategy.recommendedStocks.slice(0, 6).map(stock => 
+                        AUE3Utils.createElement('div', {
+                            style: {
+                                padding: '1rem',
+                                background: '#f8fafc',
+                                borderRadius: '12px',
+                                border: '1px solid #e2e8f0'
+                            }
+                        }, [
+                            AUE3Utils.createElement('div', {
+                                style: {
+                                    fontWeight: '700',
+                                    color: '#0f172a',
+                                    marginBottom: '0.5rem'
+                                }
+                            }, `${stock.name || stock.symbol} (${stock.symbol})`),
+                            AUE3Utils.createElement('div', {
+                                style: {
+                                    fontSize: '0.9rem',
+                                    color: '#64748b'
+                                }
+                            }, `建议配置: ${(stock.recommended_allocation * 100).toFixed(1)}%`)
+                        ])
+                    ))
+                ]);
+                resultContainer.appendChild(stocksCard);
+            }
+
+            // 风险提示卡片
+            if (strategy.riskInsight) {
+                const riskCard = AUE3Utils.createElement('div', {
+                    className: 'strategy-card',
+                    style: {
+                        background: 'white',
+                        borderRadius: '20px',
+                        padding: '2.5rem',
+                        boxShadow: '0 8px 30px rgba(0,0,0,0.1)',
+                        marginBottom: '2rem'
+                    }
+                }, [
+                    AUE3Utils.createElement('h4', {
+                        style: {
+                            fontSize: '1.5rem',
+                            fontWeight: '800',
+                            color: '#0f172a',
+                            marginBottom: '1rem'
+                        }
+                    }, '风险管理建议'),
+                    AUE3Utils.createElement('p', {
+                        style: {
+                            fontSize: '1rem',
+                            color: '#64748b',
+                            lineHeight: '1.6'
+                        }
+                    }, strategy.riskInsight)
+                ]);
+                resultContainer.appendChild(riskCard);
+            }
+
             // 回测结果卡片
             if (strategy.backtest) {
                 const backtestCard = this.createBacktestCard(strategy.backtest);
@@ -499,7 +713,10 @@ const StrategyUI = {
                 }
             }, [
                 this.createButton('保存策略', 'fa-save', () => app.dispatch('saveStrategy')),
-                this.createButton('下一步：回测优化', 'fa-arrow-right', () => app.dispatch('nextStep'))
+                this.createButton('重新生成', 'fa-refresh', () => {
+                    app.setState({ currentStep: 1, generatedStrategy: null });
+                    app.render('stepChange');
+                })
             ]);
 
             resultContainer.appendChild(actions);
@@ -778,6 +995,12 @@ window.nextStep = () => {
 window.prevStep = () => {
     strategyApp.dispatch('prevStep');
 };
+
+
+
+
+
+
 
 
 

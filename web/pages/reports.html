@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>报告中心 - FinLoom</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/web/css/common.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="logo">
+                    <i class="fas fa-chart-line"></i>
+                    <span>FinLoom</span>
+                </h1>
+            </div>
+            <nav class="sidebar-menu">
+                <a href="/web/index_upgraded.html" class="menu-item">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>仪表板</span>
+                </a>
+                <a href="/web/pages/portfolio.html" class="menu-item">
+                    <i class="fas fa-briefcase"></i>
+                    <span>投资组合</span>
+                </a>
+                <a href="/web/pages/backtest.html" class="menu-item">
+                    <i class="fas fa-history"></i>
+                    <span>策略回测</span>
+                </a>
+                <a href="/web/pages/data-manager.html" class="menu-item">
+                    <i class="fas fa-database"></i>
+                    <span>数据管理</span>
+                </a>
+                <a href="/web/pages/reports.html" class="menu-item active">
+                    <i class="fas fa-file-alt"></i>
+                    <span>报告中心</span>
+                </a>
+                <a href="/web/pages/settings.html" class="menu-item">
+                    <i class="fas fa-cog"></i>
+                    <span>系统设置</span>
+                </a>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <h2>报告中心</h2>
+                    <p class="header-subtitle">Report Center</p>
+                </div>
+                <div class="header-right">
+                    <button class="btn btn-primary" onclick="showGenerateModal()">
+                        <i class="fas fa-plus"></i>
+                        生成报告
+                    </button>
+                </div>
+            </header>
+
+            <div class="content">
+                <!-- 报告类型卡片 -->
+                <div class="overview-cards" style="margin-bottom: 32px;">
+                    <div class="card-metric" style="cursor: pointer;" onclick="filterReports('all')">
+                        <div class="metric-header">
+                            <span class="metric-label">全部报告</span>
+                            <i class="fas fa-file-alt metric-icon"></i>
+                        </div>
+                        <div class="metric-value" id="total-reports">0</div>
+                    </div>
+                    
+                    <div class="card-metric" style="cursor: pointer;" onclick="filterReports('portfolio')">
+                        <div class="metric-header">
+                            <span class="metric-label">投资组合</span>
+                            <i class="fas fa-briefcase metric-icon"></i>
+                        </div>
+                        <div class="metric-value" style="color: #667eea;">0</div>
+                    </div>
+                    
+                    <div class="card-metric" style="cursor: pointer;" onclick="filterReports('backtest')">
+                        <div class="metric-header">
+                            <span class="metric-label">回测报告</span>
+                            <i class="fas fa-history metric-icon"></i>
+                        </div>
+                        <div class="metric-value" style="color: #10b981;">0</div>
+                    </div>
+                    
+                    <div class="card-metric" style="cursor: pointer;" onclick="filterReports('analysis')">
+                        <div class="metric-header">
+                            <span class="metric-label">市场分析</span>
+                            <i class="fas fa-chart-line metric-icon"></i>
+                        </div>
+                        <div class="metric-value" style="color: #f59e0b;">0</div>
+                    </div>
+                </div>
+
+                <!-- 报告列表 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>报告列表</h3>
+                        <div class="card-tools">
+                            <button class="btn-icon" onclick="refreshReports()">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>报告标题</th>
+                                        <th>类型</th>
+                                        <th>创建时间</th>
+                                        <th>状态</th>
+                                        <th>大小</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="reports-tbody">
+                                    <tr>
+                                        <td colspan="6" class="loading-cell">
+                                            <i class="fas fa-spinner fa-spin"></i> 加载中...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 生成报告弹窗 -->
+    <div class="modal" id="generate-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>生成报告</h3>
+                <button class="btn-close" onclick="closeModal('generate-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>报告类型</label>
+                    <select id="report-type" class="form-select">
+                        <option value="portfolio">投资组合分析报告</option>
+                        <option value="backtest">策略回测报告</option>
+                        <option value="market">市场分析报告</option>
+                        <option value="quarterly">季度总结报告</option>
+                        <option value="annual">年度总结报告</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>报告标题</label>
+                    <input type="text" id="report-title" class="form-input" placeholder="例如: 2024年Q1投资总结">
+                </div>
+                <div class="form-group">
+                    <label>时间范围</label>
+                    <input type="date" id="report-start-date" class="form-input">
+                    <input type="date" id="report-end-date" class="form-input" style="margin-top: 8px;">
+                </div>
+                <div class="form-group">
+                    <label>包含内容</label>
+                    <div>
+                        <label style="display: block; margin-bottom: 8px;">
+                            <input type="checkbox" checked style="margin-right: 8px;"> 投资概览
+                        </label>
+                        <label style="display: block; margin-bottom: 8px;">
+                            <input type="checkbox" checked style="margin-right: 8px;"> 收益分析
+                        </label>
+                        <label style="display: block; margin-bottom: 8px;">
+                            <input type="checkbox" checked style="margin-right: 8px;"> 风险评估
+                        </label>
+                        <label style="display: block;">
+                            <input type="checkbox" style="margin-right: 8px;"> 优化建议
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('generate-modal')">取消</button>
+                <button class="btn btn-primary" onclick="generateReport()">
+                    <i class="fas fa-magic"></i> 生成报告
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/web/js/global-sidebar.js"></script>
+    <script src="/web/js/reports.js"></script>
+</body>
+</html>
+
