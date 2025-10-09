@@ -253,7 +253,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { api } from '@/services/api'
+import { api } from '@/services'
 
 const currentStep = ref('1')
 const generating = ref(false)

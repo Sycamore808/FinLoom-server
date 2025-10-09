@@ -365,15 +365,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { api } from '@/services/api'
+import { api } from '@/services'
 
 const router = useRouter()
-const loading = ref(false)
-const marketData = ref(null)
 const indexPeriod = ref('1D')
 const stockSort = ref('change')
+
+const loading = ref(false)
 
 // 市场状态
 const marketStatus = ref({
@@ -456,30 +456,137 @@ const sortedHotStocks = computed(() => {
   }
 })
 
-const lastUpdateTime = computed(() => {
-  return new Date().toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
+const lastUpdateTime = ref('')
+let refreshInterval = null
+
+// 判断当前是否为交易时间
+function isMarketOpen() {
+  const now = new Date()
+  const day = now.getDay() // 0=周日, 1-5=周一到周五, 6=周六
+  const hours = now.getHours()
+  const minutes = now.getMinutes()
+  const timeInMinutes = hours * 60 + minutes
+  
+  // 周末不开市
+  if (day === 0 || day === 6) {
+    return false
+  }
+  
+  // 交易时间段：
+  // 上午：9:30-11:30 (570-690分钟)
+  // 下午：13:00-15:00 (780-900分钟)
+  const morningOpen = 9 * 60 + 30  // 570
+  const morningClose = 11 * 60 + 30 // 690
+  const afternoonOpen = 13 * 60     // 780
+  const afternoonClose = 15 * 60    // 900
+  
+  return (timeInMinutes >= morningOpen && timeInMinutes <= morningClose) ||
+         (timeInMinutes >= afternoonOpen && timeInMinutes <= afternoonClose)
+}
+
+function updateLastUpdateTime() {
+  const now = new Date()
+  lastUpdateTime.value = now.toLocaleTimeString('zh-CN', {
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
+    second: '2-digit'
   })
+}
+
+function startAutoRefresh() {
+  // 清除旧的定时器
+  stopAutoRefresh()
+  
+  // 检查当前是否在交易时间
+  const marketOpen = isMarketOpen()
+  
+  if (!marketOpen) {
+    console.log('⏸️ MarketView - 当前为休市时间，不启动自动刷新')
+    // 设置定时器在下一个交易时段检查（每分钟检查一次）
+    refreshInterval = setInterval(() => {
+      const nowOpen = isMarketOpen()
+      if (nowOpen) {
+        console.log('🔔 MarketView - 检测到开市，重新启动自动刷新')
+        startAutoRefresh() // 递归调用以启动真正的刷新定时器
+      }
+    }, 60000) // 1分钟检查一次
+    return
+  }
+  
+  console.log('▶️ MarketView - 交易时间，启动自动刷新 (15秒间隔)')
+  refreshInterval = setInterval(async () => {
+    // 每次刷新时都检查是否还在交易时间
+    const marketOpen = isMarketOpen()
+    
+    // 如果已经收市，停止并重新启动（进入等待模式）
+    if (!marketOpen) {
+      console.log('⏸️ MarketView - 检测到休市，停止自动刷新')
+      startAutoRefresh() // 重新调用以进入等待模式
+      return
+    }
+    
+    try {
+      // 刷新市场数据
+      await loadMarketData(true)
+      updateLastUpdateTime()
+      console.log('✅ MarketView - 实时数据已更新')
+    } catch (error) {
+      console.error('❌ MarketView - 自动刷新失败:', error)
+    }
+  }, 15000) // 15秒
+}
+
+function stopAutoRefresh() {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
+  }
+}
+
+onMounted(async () => {
+  // 加载市场数据（包含指数和热门股票）
+  await loadMarketData()
+  updateLastUpdateTime()
+  
+  // 启动自动刷新
+  startAutoRefresh()
 })
 
-onMounted(() => {
-  loadMarketData()
+onUnmounted(() => {
+  // 组件卸载时清理定时器
+  stopAutoRefresh()
 })
 
-async function loadMarketData() {
-  loading.value = true
+async function loadMarketData(force = false) {
   try {
-    // 模拟API调用
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    // const response = await api.market.getOverview()
-    // marketData.value = response.data
+    // 并行获取指数和热门股票数据
+    const [indicesResponse, stocksResponse] = await Promise.all([
+      api.market.getIndices(),
+      api.market.getHotStocks()
+    ])
+    
+    // 更新指数数据
+    if (indicesResponse.data && indicesResponse.data.indices) {
+      marketIndices.value = indicesResponse.data.indices.map(index => ({
+        symbol: index.symbol,
+        name: index.name,
+        value: index.value,
+        change: index.change,
+        change_pct: index.change_pct
+      }))
+    }
+    
+    // 更新热门股票数据
+    if (stocksResponse.data && stocksResponse.data.hot_stocks) {
+      hotStocks.value = stocksResponse.data.hot_stocks
+    }
+    
+    console.log('✅ 市场数据加载完成:', {
+      indices: marketIndices.value.length,
+      stocks: hotStocks.value.length
+    })
   } catch (error) {
-    console.error('加载市场数据失败:', error)
-  } finally {
-    loading.value = false
+    console.error('❌ 加载市场数据失败:', error)
   }
 }
 

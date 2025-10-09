@@ -208,8 +208,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { api } from '@/services/api'
+import { ref, computed, onMounted } from 'vue'
+import { api } from '@/services'
+import { useDataStore } from '@/stores/data'
+
+const dataStore = useDataStore()
 
 const collectConfig = ref({
   symbol: '000001',
@@ -220,8 +223,9 @@ const collectConfig = ref({
 
 const collecting = ref(false)
 const collectResult = ref(null)
-const loadingOverview = ref(false)
-const overview = ref(null)
+
+const loadingOverview = computed(() => dataStore.loading)
+const overview = computed(() => dataStore.overview)
 
 // 选项数据
 const periodOptions = [
@@ -247,8 +251,9 @@ const dataQualityMetrics = ref([
   { name: '数据覆盖度', value: '87.3%', color: 'info', icon: 'mdi-chart-areaspline', description: '股票覆盖范围' }
 ])
 
-onMounted(() => {
-  loadOverview()
+onMounted(async () => {
+  // 使用缓存数据（如果有效）
+  await dataStore.fetchOverview()
 })
 
 async function collectData() {
@@ -258,7 +263,11 @@ async function collectData() {
   try {
     const response = await api.data.collect(collectConfig.value)
     collectResult.value = response.data
-    setTimeout(() => { loadOverview() }, 1000)
+    // 数据采集后强制刷新概览，清除缓存
+    setTimeout(() => { 
+      dataStore.clearCache()
+      loadOverview(true) 
+    }, 1000)
   } catch (error) {
     console.error('数据采集失败:', error)
   } finally {
@@ -266,16 +275,9 @@ async function collectData() {
   }
 }
 
-async function loadOverview() {
-  loadingOverview.value = true
-  try {
-    const response = await api.data.getOverview()
-    overview.value = response.data
-  } catch (error) {
-    console.error('加载概览失败:', error)
-  } finally {
-    loadingOverview.value = false
-  }
+async function loadOverview(force = false) {
+  // 调用 store 方法，支持强制刷新
+  await dataStore.fetchOverview(force)
 }
 
 function batchCollect() {

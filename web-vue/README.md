@@ -18,24 +18,60 @@
 ```
 web-vue/
 ├── src/
-│   ├── assets/          # 静态资源
-│   │   └── styles/      # 全局样式
-│   ├── components/      # 组件
-│   │   ├── layout/      # 布局组件
-│   │   └── ui/          # UI组件
-│   ├── layouts/         # 页面布局
-│   ├── router/          # 路由配置
-│   ├── services/        # API服务
-│   ├── stores/          # Pinia状态管理
-│   ├── views/           # 页面视图
-│   │   └── dashboard/   # 仪表盘页面
-│   ├── App.vue          # 根组件
-│   └── main.js          # 入口文件
-├── public/              # 公共资源
-├── index.html           # HTML模板
-├── vite.config.js       # Vite配置
-└── package.json         # 依赖配置
+│   ├── assets/
+│   │   └── styles/
+│   │       ├── main.scss          # 全局样式
+│   │       └── views/             # 视图专属样式
+│   │           └── chat-view.scss # ChatView样式
+│   ├── components/
+│   │   ├── chat/                  # 聊天组件
+│   │   │   ├── ChatSidebar.vue    # 侧边栏
+│   │   │   ├── ChatHeader.vue     # 头部
+│   │   │   ├── ChatMessages.vue   # 消息列表
+│   │   │   ├── ChatInput.vue      # 输入框
+│   │   │   └── AISettingsDialog.vue # 设置对话框
+│   │   ├── layout/                # 布局组件
+│   │   └── ui/                    # UI组件
+│   ├── composables/               # 组合式函数
+│   │   ├── useChat.js             # 聊天功能
+│   │   ├── useConversationActions.js # 对话操作
+│   │   ├── useAISettings.js       # AI设置
+│   │   └── index.js               # 统一导出
+│   ├── constants/                 # 常量配置
+│   │   ├── chat.js                # 聊天常量
+│   │   └── index.js               # 统一导出
+│   ├── layouts/                   # 页面布局
+│   ├── router/                    # 路由配置
+│   ├── services/                  # API服务（已模块化）
+│   │   ├── modules/               # API模块
+│   │   │   ├── chat.js            # 聊天API
+│   │   │   ├── strategy.js        # 策略API
+│   │   │   ├── market.js          # 市场API
+│   │   │   ├── dashboard.js       # 仪表盘API
+│   │   │   ├── portfolio.js       # 投资组合API
+│   │   │   ├── trades.js          # 交易API
+│   │   │   ├── backtest.js        # 回测API
+│   │   │   ├── data.js            # 数据API
+│   │   │   └── health.js          # 健康检查API
+│   │   ├── client.js              # Axios客户端
+│   │   ├── index.js               # 统一导出
+│   │   └── api.js                 # 兼容层
+│   ├── stores/                    # Pinia状态管理
+│   │   ├── app.js                 # 应用状态（已更新）
+│   │   ├── chat.js                # 聊天状态（已更新）
+│   │   └── dashboard.js           # 仪表盘状态（已更新）
+│   ├── utils/                     # 工具函数
+│   │   ├── date.js                # 日期时间工具
+│   │   ├── chat.js                # 聊天工具
+│   │   ├── clipboard.js           # 剪贴板工具
+│   │   └── index.js               # 统一导出
+│   ├── views/                     # 页面视图（所有页面已更新API导入）
+│   ├── App.vue
+│   └── main.js
+└── ...
 ```
+
+> 注：所有文件已完成重构，统一使用 `@/services` 导入API
 
 ## 快速开始
 
@@ -146,16 +182,24 @@ npm run dev
 
 ### 添加新API
 
-在 `src/services/api.js` 中添加新的API方法：
+在 `src/services/modules/` 中创建新的API模块：
 
 ```javascript
-export const api = {
-  // 现有API...
-  
-  myNewAPI: {
-    getData: () => apiClient.get('/v1/my-endpoint')
-  }
+// src/services/modules/myapi.js
+import apiClient from '../client'
+
+export const myApi = {
+  getData: () => apiClient.get('/v1/my-endpoint')
 }
+
+// src/services/index.js
+export { myApi } from './modules/myapi'
+```
+
+或直接使用统一的api对象：
+```javascript
+import { api } from '@/services'
+api.chat.send(...)
 ```
 
 ### 使用Store

@@ -1,6 +1,6 @@
 <template>
   <v-container fluid class="overview-view pa-6">
-    <!-- 全局加载提示条 -->
+    <!-- 全局加载提示条 - 只在首次加载且无缓存时显示 -->
     <v-progress-linear
       v-if="isLoading"
       indeterminate
@@ -24,29 +24,25 @@
         </div>
         <div class="d-flex gap-2">
           <v-alert
-            :type="isLoading ? 'info' : 'success'"
+            :type="isLoading ? 'info' : isMarketOpenNow ? 'success' : 'warning'"
             variant="tonal"
             class="mb-0"
             rounded="lg"
             density="compact"
           >
             <template v-slot:prepend>
-              <v-icon>{{ isLoading ? 'mdi-loading mdi-spin' : 'mdi-check-circle' }}</v-icon>
+              <v-icon>{{ isLoading ? 'mdi-loading mdi-spin' : isMarketOpenNow ? 'mdi-chart-line' : 'mdi-pause-circle' }}</v-icon>
             </template>
             <span class="text-body-2 font-weight-medium">
-              {{ isLoading ? '数据加载中' : '市场正常运行' }}
+              {{ isLoading ? '数据加载中' : isMarketOpenNow ? '交易进行中' : '休市中' }}
             </span>
           </v-alert>
         </div>
       </div>
     </div>
 
-    <div v-if="dashboardStore.loading && !metrics" class="text-center py-10">
-      <v-progress-circular indeterminate color="primary" size="64"></v-progress-circular>
-      <p class="mt-4 text-body-1">加载数据中...</p>
-    </div>
-
-    <div v-else>
+    <!-- 移除了重复的loading显示，统一使用isLoading状态 -->
+    <div>
       <!-- 关键指标卡片 - Material 3 风格 -->
       <v-row class="mb-6">
         <v-col cols="12" sm="6" md="3">
@@ -464,7 +460,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useRouter } from 'vue-router'
-import { api } from '@/services/api'
+import { api } from '@/services'
 import Chart from 'chart.js/auto'
 
 const dashboardStore = useDashboardStore()
@@ -478,10 +474,35 @@ const isLoading = ref(true)
 const lastUpdateTime = ref('')
 let refreshInterval = null
 
+// 市场数据缓存
+const marketDataCache = ref({
+  data: null,
+  timestamp: null
+})
+const MARKET_CACHE_DURATION = 5 * 60 * 1000 // 市场数据缓存 5 分钟
+
 const metrics = computed(() => dashboardStore.metrics)
 const positions = computed(() => dashboardStore.positions)
 const recentTrades = computed(() => dashboardStore.recentTrades)
 
+// 判断当前是否为交易时间
+const isMarketOpenNow = computed(() => {
+  const now = new Date()
+  const day = now.getDay()
+  const hours = now.getHours()
+  const minutes = now.getMinutes()
+  const timeInMinutes = hours * 60 + minutes
+  
+  if (day === 0 || day === 6) return false
+  
+  const morningOpen = 9 * 60 + 30
+  const morningClose = 11 * 60 + 30
+  const afternoonOpen = 13 * 60
+  const afternoonClose = 15 * 60
+  
+  return (timeInMinutes >= morningOpen && timeInMinutes <= morningClose) ||
+         (timeInMinutes >= afternoonOpen && timeInMinutes <= afternoonClose)
+})
 
 // 市场指数数据 - 从API获取
 const marketIndices = ref([
@@ -503,26 +524,55 @@ let portfolioChart = null
 let equityChart = null
 
 onMounted(async () => {
-  // 显示加载状态
-  isLoading.value = true
+  // 如果有缓存数据，立即显示，不需要加载状态
+  const hasCache = dashboardStore.isCacheValid('metrics') && 
+                   dashboardStore.metrics.total_assets !== 0
+  
+  if (!hasCache) {
+    isLoading.value = true
+  } else {
+    console.log('✅ 使用缓存数据，页面立即显示')
+  }
   
   try {
-    // 并行加载数据以提高性能
+    // 使用缓存数据（如果有效）
     await Promise.all([
-      dashboardStore.refreshAll(),
-      loadMarketData()
+      dashboardStore.fetchMetrics(),  // 自动检查缓存
+      loadMarketData()                // 市场指数（带缓存）
     ])
     
-    // 初始化图表（延迟执行避免阻塞）
-    setTimeout(() => {
-      initCharts()
-    }, 100)
+    // 延迟加载次要数据 - 使用缓存
+    setTimeout(async () => {
+      await Promise.all([
+        dashboardStore.fetchPositions(),
+        dashboardStore.fetchRecentTrades()
+      ])
+      // 有持仓数据后再初始化投资组合图表
+      if (positions.value.length > 0) {
+        initPortfolioChart()
+      }
+    }, 500)
     
-    // 启动自动刷新 - 每30秒更新一次市场数据
+    // 延迟初始化收益曲线图表
+    setTimeout(() => {
+      initEquityChart()
+    }, 1000)
+    
+    // 启动自动刷新 - 只在交易时间刷新实时数据
     startAutoRefresh()
     
     // 更新时间戳
-    updateLastUpdateTime()
+    if (!hasCache) {
+      updateLastUpdateTime()
+    } else {
+      // 显示缓存时间
+      const cacheTime = new Date(dashboardStore.cacheTimestamps.metrics)
+      lastUpdateTime.value = cacheTime.toLocaleTimeString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }) + ' (缓存)'
+    }
   } finally {
     isLoading.value = false
   }
@@ -533,20 +583,75 @@ onUnmounted(() => {
   stopAutoRefresh()
 })
 
+// 判断当前是否为交易时间
+function isMarketOpen() {
+  const now = new Date()
+  const day = now.getDay() // 0=周日, 1-5=周一到周五, 6=周六
+  const hours = now.getHours()
+  const minutes = now.getMinutes()
+  const timeInMinutes = hours * 60 + minutes
+  
+  // 周末不开市
+  if (day === 0 || day === 6) {
+    return false
+  }
+  
+  // 交易时间段：
+  // 上午：9:30-11:30 (570-690分钟)
+  // 下午：13:00-15:00 (780-900分钟)
+  const morningOpen = 9 * 60 + 30  // 570
+  const morningClose = 11 * 60 + 30 // 690
+  const afternoonOpen = 13 * 60     // 780
+  const afternoonClose = 15 * 60    // 900
+  
+  return (timeInMinutes >= morningOpen && timeInMinutes <= morningClose) ||
+         (timeInMinutes >= afternoonOpen && timeInMinutes <= afternoonClose)
+}
+
 function startAutoRefresh() {
   // 清除旧的定时器
   stopAutoRefresh()
   
-  // 每30秒刷新一次市场数据
+  // 检查当前是否在交易时间
+  const marketOpen = isMarketOpen()
+  
+  if (!marketOpen) {
+    console.log('⏸️ 当前为休市时间，不启动自动刷新')
+    // 设置定时器在下一个交易时段检查（每分钟检查一次）
+    refreshInterval = setInterval(() => {
+      const nowOpen = isMarketOpen()
+      if (nowOpen) {
+        console.log('🔔 检测到开市，重新启动自动刷新')
+        startAutoRefresh() // 递归调用以启动真正的刷新定时器
+      }
+    }, 60000) // 1分钟检查一次
+    return
+  }
+  
+  console.log('▶️ 交易时间，启动自动刷新 (15秒间隔)')
   refreshInterval = setInterval(async () => {
-    try {
-      await loadMarketData()
-      updateLastUpdateTime()
-      console.log('市场数据已自动刷新')
-    } catch (error) {
-      console.error('自动刷新失败:', error)
+    // 每次刷新时都检查是否还在交易时间
+    const marketOpen = isMarketOpen()
+    
+    // 如果已经收市，停止并重新启动（进入等待模式）
+    if (!marketOpen) {
+      console.log('⏸️ 检测到休市，停止自动刷新')
+      startAutoRefresh() // 重新调用以进入等待模式
+      return
     }
-  }, 30000) // 30秒
+    
+    try {
+      // 只刷新实时数据：市场指数 + 关键指标（强制刷新，忽略缓存）
+      await Promise.all([
+        loadMarketData(true),  // 交易时间强制刷新
+        dashboardStore.fetchMetrics(true)  // 交易时间强制刷新
+      ])
+      updateLastUpdateTime()
+      console.log('✅ 实时数据已更新')
+    } catch (error) {
+      console.error('❌ 自动刷新失败:', error)
+    }
+  }, 15000) // 15秒
 }
 
 function stopAutoRefresh() {
@@ -573,11 +678,11 @@ watch(chartPeriod, () => {
   updateEquityChart()
 })
 
-// 初始化图表
-function initCharts() {
-  initPortfolioChart()
-  initEquityChart()
-}
+// 优化：移除统一初始化，改为按需初始化
+// function initCharts() {
+//   initPortfolioChart()
+//   initEquityChart()
+// }
 
 function initPortfolioChart() {
   if (portfolioChartRef.value) {
@@ -709,18 +814,23 @@ function updateEquityChart() {
 
 function generateEquityData(period) {
   const baseValue = 1000000
+  // 优化：大幅减少数据点数量，使用采样
   const days = period === '1M' ? 30 : period === '3M' ? 90 : 365
+  const sampleRate = period === '1M' ? 1 : period === '3M' ? 3 : 7  // 采样率：1天/3天/7天
+  const dataPoints = Math.ceil(days / sampleRate)  // 实际数据点：30/30/52个
+  
   const labels = []
   const values = []
   
-  for (let i = 0; i < days; i++) {
+  for (let i = 0; i < dataPoints; i++) {
+    const dayOffset = i * sampleRate
     const date = new Date()
-    date.setDate(date.getDate() - (days - i))
+    date.setDate(date.getDate() - (days - dayOffset))
     labels.push(date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }))
     
     // 模拟价格波动
     const randomChange = (Math.random() - 0.5) * 0.02
-    const value = baseValue * (1 + randomChange * (i + 1) / days)
+    const value = baseValue * (1 + randomChange * (dayOffset + 1) / days)
     values.push(Math.max(value, baseValue * 0.8))
   }
   
@@ -807,14 +917,26 @@ function getVolatilityColor(value) {
 
 // 事件处理
 
-async function loadMarketData() {
+async function loadMarketData(force = false) {
+  // 检查缓存是否有效
+  if (!force && marketDataCache.value.timestamp) {
+    const elapsed = Date.now() - marketDataCache.value.timestamp
+    if (elapsed < MARKET_CACHE_DURATION && marketDataCache.value.data) {
+      // 使用缓存数据
+      const cachedData = marketDataCache.value.data
+      marketIndices.value = cachedData
+      console.log('✅ 使用缓存的市场指数数据')
+      return
+    }
+  }
+  
   if (!marketLoading.value) {
     marketLoading.value = true
   }
   
   try {
-    // 调用真实的市场概览API
-    const response = await api.market.getOverview()
+    // 调用专门的市场指数API（优化：只获取指数数据）
+    const response = await api.market.getIndices()
     
     if (response.data && response.data.indices) {
       // 更新市场指数数据
@@ -841,25 +963,36 @@ async function loadMarketData() {
         }
       })
       
-      console.log('✅ 市场数据加载成功:', {
+      // 缓存数据
+      marketDataCache.value = {
+        data: [...marketIndices.value],
+        timestamp: Date.now()
+      }
+      
+      console.log('✅ 从服务器获取市场指数数据:', {
         count: indices.length,
         indices: indices.map(i => `${i.name}: ${i.value}`)
       })
     }
   } catch (error) {
-    console.error('❌ 加载市场数据失败:', error)
+    console.error('❌ 加载市场指数数据失败:', error)
   } finally {
     marketLoading.value = false
   }
 }
 
 async function refreshMarketData() {
-  isLoading.value = true
+  marketLoading.value = true
   try {
-    await loadMarketData()
+    // 强制刷新市场数据和关键指标
+    await Promise.all([
+      loadMarketData(true),  // force = true
+      dashboardStore.fetchMetrics(true)  // force = true
+    ])
     updateLastUpdateTime()
+    console.log('🔄 手动刷新数据完成')
   } finally {
-    isLoading.value = false
+    marketLoading.value = false
   }
 }
 

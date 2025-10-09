@@ -188,31 +188,28 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { api } from '@/services/api'
+import { useChatStore } from '@/stores/chat'
 
 const router = useRouter()
-const favorites = ref([])
-const loading = ref(false)
+const chatStore = useChatStore()
+
+const loading = computed(() => chatStore.loading)
+const favorites = computed(() => chatStore.favorites)
+
 const editDialog = ref(false)
 const editingTitle = ref('')
 const editingFavorite = ref(null)
 
 onMounted(async () => {
-  await loadFavorites()
+  // 使用缓存数据（如果有效）
+  await chatStore.fetchFavorites()
 })
 
-async function loadFavorites() {
-  loading.value = true
-  try {
-    const response = await api.chat.getFavorites()
-    favorites.value = response.data || []
-  } catch (error) {
-    console.error('加载收藏列表失败:', error)
-  } finally {
-    loading.value = false
-  }
+async function loadFavorites(force = false) {
+  // 调用 store 方法，支持强制刷新
+  await chatStore.fetchFavorites(force)
 }
 
 function openConversation(id) {

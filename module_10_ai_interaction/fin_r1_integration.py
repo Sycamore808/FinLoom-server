@@ -32,6 +32,10 @@ except ImportError:
 
 from common.exceptions import ModelError
 from common.logging_system import setup_logger
+from common.model_inference_visualizer import (
+    ModelInferenceVisualizer,
+    display_model_info,
+)
 from module_10_ai_interaction.requirement_parser import (
     InvestmentConstraint,
     InvestmentGoal,
@@ -59,13 +63,15 @@ class FINR1Integration:
         # 加载配置
         if config is None:
             if config_path is None:
-                config_path = os.path.join("module_10_ai_interaction", "config", "fin_r1_config.yaml")
+                config_path = os.path.join(
+                    "module_10_ai_interaction", "config", "fin_r1_config.yaml"
+                )
             config = self._load_config(config_path)
 
         # 确保config是字典
         if config is None:
             config = {}
-            
+
         self.config = config
         model_config = config.get("model", {})
 
@@ -91,6 +97,9 @@ class FINR1Integration:
         self.model = None
         self.tokenizer = None
         self.requirement_parser = RequirementParser()
+
+        # 初始化可视化器
+        self.visualizer = ModelInferenceVisualizer()
 
         self._load_model()
 
@@ -150,7 +159,14 @@ class FINR1Integration:
 
             logger.info(f"Loading FIN-R1 model from {self.model_path}...")
 
+            # 显示加载进度
+            if self.visualizer and self.visualizer.console:
+                self.visualizer.console.print(
+                    "\n[bold cyan]🚀 Initializing FIN-R1 Model[/bold cyan]\n"
+                )
+
             # 加载分词器
+            logger.info("Loading tokenizer...")
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.model_path, trust_remote_code=True, use_fast=False
             )
@@ -159,17 +175,38 @@ class FINR1Integration:
             if self.tokenizer.pad_token is None:
                 self.tokenizer.pad_token = self.tokenizer.eos_token
 
-            # 加载模型
-            logger.info("Loading model (this may take several minutes)...")
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_path,
-                trust_remote_code=True,
-                torch_dtype=torch.float32,  # 使用float32以保证兼容性
-            )
-            self.model.to(self.device)
-            self.model.eval()
+            # 加载模型（显示进度）
+            def load_model_with_progress(progress=None, task=None):
+                model = AutoModelForCausalLM.from_pretrained(
+                    self.model_path,
+                    trust_remote_code=True,
+                    dtype=torch.float32,  # 🔧 修复：使用 dtype 而不是 torch_dtype
+                    low_cpu_mem_usage=True,  # 减少CPU内存占用
+                )
+                if progress and task:
+                    progress.update(task, advance=50)
 
-            logger.info(f"FIN-R1 model loaded successfully from {self.model_path}")
+                model.to(self.device)
+                model.eval()
+
+                if progress and task:
+                    progress.update(task, advance=50)
+                return model
+
+            self.model = (
+                self.visualizer.simple_progress_bar(
+                    "[cyan]📦 Loading model weights",
+                    total=100,
+                    callback=load_model_with_progress,
+                )
+                if self.visualizer
+                else load_model_with_progress()
+            )
+
+            logger.info("✅ FIN-R1 model loaded successfully")
+
+            # 显示模型信息
+            display_model_info("FIN-R1", "7B")
         except Exception as e:
             logger.warning(f"Failed to load FIN-R1 model: {e}, using mock model")
             self.model = None
@@ -250,21 +287,83 @@ class FINR1Integration:
             # 移动到设备
             inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
-            # 模型推理 - 文本生成
-            logger.info("Starting model generation...")
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=32,  # 进一步减少生成tokens
-                    do_sample=False,  # 使用贪心解码，比采样快得多
-                    num_beams=1,  # 禁用beam search
-                    pad_token_id=self.tokenizer.pad_token_id,
-                    eos_token_id=self.tokenizer.eos_token_id,
-                    # 不设置temperature, top_p, top_k，避免警告
+            # 🚀 使用流式生成 + 可视化进度
+            logger.info("Starting model generation with visualization...")
+
+            max_new_tokens = 50  # 增加到50以展示进度
+
+            try:
+                # 尝试使用流式生成（如果支持）
+                from threading import Thread
+
+                from transformers import TextIteratorStreamer
+
+                # 🔧 设置 timeout 防止死锁！
+                streamer = TextIteratorStreamer(
+                    self.tokenizer,
+                    skip_prompt=True,
+                    skip_special_tokens=True,
+                    timeout=30.0,  # 🔑 关键：30秒超时，防止无限等待
                 )
 
-            # 解码输出
-            generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+                # 在后台线程运行生成
+                generation_kwargs = dict(
+                    **inputs,
+                    streamer=streamer,
+                    max_new_tokens=max_new_tokens,
+                    do_sample=False,  # 使用贪心解码（更快）
+                    num_beams=1,
+                    pad_token_id=self.tokenizer.pad_token_id,
+                    eos_token_id=self.tokenizer.eos_token_id,
+                    use_cache=True,
+                )
+
+                # 🔑 必须先启动生成线程
+                thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
+                thread.start()
+
+                # 🔑 立即开始消费 streamer，避免死锁
+                logger.info("🚀 Starting streaming generation...")
+
+                # 🎯 使用可视化器显示流式生成进度
+                generated_text = self.visualizer.visualize_generation(
+                    streamer, max_new_tokens=max_new_tokens, model_name="FIN-R1"
+                )
+
+                # 等待生成线程完成
+                thread.join(timeout=60)  # 最多等待60秒
+
+                if thread.is_alive():
+                    logger.warning("⚠️ Generation thread timeout, may be incomplete")
+                    raise TimeoutError("Model generation timeout")
+
+            except Exception as stream_error:
+                # Fallback: 非流式生成（带简单进度）
+                logger.warning(
+                    f"Streaming not available: {stream_error}, using standard generation"
+                )
+
+                if self.visualizer and self.visualizer.console:
+                    self.visualizer.console.print(
+                        "[yellow]⚡ Using fast non-streaming mode[/yellow]"
+                    )
+
+                with torch.no_grad():
+                    outputs = self.model.generate(
+                        **inputs,
+                        max_new_tokens=max_new_tokens,
+                        do_sample=False,
+                        num_beams=1,
+                        pad_token_id=self.tokenizer.pad_token_id,
+                        eos_token_id=self.tokenizer.eos_token_id,
+                        use_cache=True,
+                    )
+
+                generated_text = self.tokenizer.decode(
+                    outputs[0], skip_special_tokens=True
+                )
+
+            logger.info("✅ Model generation completed")
 
             # 提取输入后的生成部分
             if input_text in generated_text:
@@ -272,8 +371,15 @@ class FINR1Integration:
 
             logger.info(f"Model generated text: {generated_text[:200]}...")
 
-            # 解析输出
-            model_output = self._parse_model_output(generated_text, parsed_requirement)
+            # ⚠️ 由于FIN-R1是通用模型，生成的文本可能不是结构化输出
+            # 我们主要使用规则引擎的结果，模型输出作为辅助参考
+            logger.info("⚠️ 注意：当前使用规则引擎+模型辅助的混合模式")
+
+            # 解析输出（主要使用规则引擎）
+            model_output = self._rule_based_analysis(user_input, parsed_requirement)
+            model_output["fin_r1_generated_text"] = (
+                generated_text  # 保存模型生成文本作为参考
+            )
 
             return model_output
 

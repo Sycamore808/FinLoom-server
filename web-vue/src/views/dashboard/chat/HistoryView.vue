@@ -172,11 +172,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { api } from '@/services/api'
+import { useChatStore } from '@/stores/chat'
 
 const router = useRouter()
-const conversations = ref([])
-const loading = ref(false)
+const chatStore = useChatStore()
+
+const conversations = computed(() => chatStore.conversations)
+const loading = computed(() => chatStore.loading)
 const searchQuery = ref('')
 const selectedFilter = ref('all')
 
@@ -216,19 +218,13 @@ const filteredConversations = computed(() => {
 })
 
 onMounted(async () => {
-  await loadConversations()
+  // 使用缓存数据（如果有效）
+  await chatStore.fetchConversations()
 })
 
-async function loadConversations() {
-  loading.value = true
-  try {
-    const response = await api.chat.getConversations()
-    conversations.value = response.data || []
-  } catch (error) {
-    console.error('加载对话列表失败:', error)
-  } finally {
-    loading.value = false
-  }
+async function loadConversations(force = false) {
+  // 调用 store 方法，支持强制刷新
+  await chatStore.fetchConversations(force)
 }
 
 function openConversation(id) {
@@ -249,8 +245,11 @@ async function deleteConversation(id) {
   if (!confirm('确定要删除这个对话吗?')) return
   
   try {
+    const { api } = await import('@/services')
     await api.chat.deleteConversation(id)
-    conversations.value = conversations.value.filter(c => c.id !== id)
+    // 清除缓存并重新加载
+    chatStore.clearCache('conversations')
+    await loadConversations(true)
   } catch (error) {
     console.error('删除对话失败:', error)
   }

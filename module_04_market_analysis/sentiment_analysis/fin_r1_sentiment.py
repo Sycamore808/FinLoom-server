@@ -73,19 +73,67 @@ class BatchSentimentResult:
 class FINR1SentimentAnalyzer:
     """FIN-R1情感分析器 - 集成Trading Agents功能"""
 
-    def __init__(self, model_path: Optional[str] = None, device: str = "auto"):
+    def __init__(
+        self,
+        model_path: Optional[str] = None,
+        device: str = "auto",
+        lazy_load: bool = True,
+        shared_model: Optional[Any] = None,
+        shared_tokenizer: Optional[Any] = None,
+    ):
         """
         初始化FIN-R1情感分析器
 
         Args:
             model_path: 模型路径，默认使用本地路径
             device: 计算设备 ('cpu', 'cuda', 'auto')
+            lazy_load: 是否延迟加载模型（默认True，避免启动时重复加载）
+            shared_model: 共享的模型实例（避免重复加载）
+            shared_tokenizer: 共享的分词器实例（避免重复加载）
         """
         self.model_path = model_path or FIN_R1_PATH
         self.device = self._get_device(device)
-        self.tokenizer = None
-        self.model = None
         self.max_length = 512
+
+        # ✅ 优先使用传入的共享模型实例
+        if shared_model is not None and shared_tokenizer is not None:
+            self.model = shared_model
+            self.tokenizer = shared_tokenizer
+            logger.info(
+                "Initialized FINR1SentimentAnalyzer with shared model (no reload)"
+            )
+        else:
+            # ✅ 尝试从全局管理器获取共享模型
+            try:
+                from common.model_manager import model_manager
+
+                if model_manager.has_fin_r1():
+                    self.model, self.tokenizer = model_manager.get_fin_r1()
+                    logger.info(
+                        "Initialized FINR1SentimentAnalyzer with global shared model (no reload)"
+                    )
+                else:
+                    self.tokenizer = None
+                    self.model = None
+                    # 延迟加载模式：不自动加载模型，使用后备方法
+                    self.lazy_load = lazy_load
+                    if not lazy_load:
+                        self._load_model()
+                    else:
+                        logger.info(
+                            "Initialized FINR1SentimentAnalyzer (lazy load mode, using fallback) with Trading Agents integration"
+                        )
+            except ImportError:
+                self.tokenizer = None
+                self.model = None
+                # 延迟加载模式：不自动加载模型，使用后备方法
+                self.lazy_load = lazy_load
+                if not lazy_load:
+                    self._load_model()
+                else:
+                    logger.info(
+                        "Initialized FINR1SentimentAnalyzer (lazy load mode, using fallback) with Trading Agents integration"
+                    )
 
         # Trading Agents 集成
         self.data_collector = (
@@ -98,11 +146,6 @@ class FINR1SentimentAnalyzer:
 
         # 情感标签映射
         self.label_mapping = {0: "negative", 1: "neutral", 2: "positive"}
-
-        self._load_model()
-        logger.info(
-            "Initialized FINR1SentimentAnalyzer with Trading Agents integration"
-        )
 
     def _get_device(self, device: str) -> str:
         """获取计算设备"""
@@ -174,11 +217,11 @@ class FINR1SentimentAnalyzer:
                 metadata={"method": "empty_text"},
             )
 
-        # 使用FIN-R1模型
+        # ✅ 延迟加载模式：直接使用后备方法，不加载模型
         if self.model is not None and self.tokenizer is not None:
             return self._analyze_with_finr1(text, **kwargs)
         else:
-            # 使用后备方法
+            # 使用后备方法（基于规则的情感分析）
             return self._analyze_with_fallback(text, **kwargs)
 
     def analyze_batch(
