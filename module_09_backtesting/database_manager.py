@@ -22,12 +22,15 @@ logger = setup_logger("backtest_database")
 class BacktestDatabaseManager:
     """回测数据库管理器"""
 
-    def __init__(self, db_path: str = "data/module09_backtest.db"):
+    def __init__(self, db_path: str = None):
         """初始化数据库管理器
 
         Args:
             db_path: 数据库文件路径
         """
+        if db_path is None:
+            import os
+            db_path = os.path.join("data", "module09_backtest.db")
         self.db_path = db_path
 
         # 确保目录存在

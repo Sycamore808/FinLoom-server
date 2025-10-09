@@ -73,10 +73,46 @@ const router = createRouter({
           meta: { title: 'AI对话' }
         },
         {
+          path: 'chat/new',
+          name: 'dashboard-chat-new',
+          component: () => import('@/views/dashboard/chat/NewChatView.vue'),
+          meta: { title: '新对话' }
+        },
+        {
+          path: 'chat/history',
+          name: 'dashboard-chat-history',
+          component: () => import('@/views/dashboard/chat/HistoryView.vue'),
+          meta: { title: '历史记录' }
+        },
+        {
+          path: 'chat/favorites',
+          name: 'dashboard-chat-favorites',
+          component: () => import('@/views/dashboard/chat/FavoritesView.vue'),
+          meta: { title: '收藏对话' }
+        },
+        {
           path: 'strategy',
           name: 'dashboard-strategy',
           component: () => import('@/views/dashboard/StrategyView.vue'),
           meta: { title: '策略模式' }
+        },
+        {
+          path: 'strategy/create',
+          name: 'dashboard-strategy-create',
+          component: () => import('@/views/dashboard/strategy/CreateStrategyView.vue'),
+          meta: { title: '创建策略' }
+        },
+        {
+          path: 'strategy/library',
+          name: 'dashboard-strategy-library',
+          component: () => import('@/views/dashboard/strategy/LibraryView.vue'),
+          meta: { title: '策略库' }
+        },
+        {
+          path: 'strategy/templates',
+          name: 'dashboard-strategy-templates',
+          component: () => import('@/views/dashboard/strategy/TemplatesView.vue'),
+          meta: { title: '策略模板' }
         },
         {
           path: 'reports',

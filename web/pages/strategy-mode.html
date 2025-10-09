@@ -510,7 +510,7 @@
     <nav class="strategy-navbar">
         <div class="nav-container">
             <div class="nav-left">
-                <button class="btn-back" onclick="window.location.href='/web/dashboard.html'">
+                <button class="btn-back" onclick="window.location.href='/index_upgraded.html'">
                     <i class="fas fa-arrow-left"></i>
                     <span>返回仪表板</span>
                 </button>
@@ -668,41 +668,111 @@
 
         <!-- 步骤2: 策略生成 -->
         <div class="step-content" id="step2">
-            <div class="step-header">
-                <h2>AI策略生成</h2>
-                <p>基于您的需求，我们正在为您生成个性化投资策略</p>
-            </div>
+                <div class="step-header">
+                    <h2>AI策略生成</h2>
+                    <p>基于您的需求，我们正在为您生成个性化投资策略</p>
+                </div>
 
-            <div class="generation-status" id="generationStatus">
-                <div class="status-icon">
+                    <div class="generation-status" id="generationStatus">
+                        <div class="status-icon">
                     <i class="fas fa-brain"></i>
+                        </div>
+                        <h3>AI正在分析您的需求...</h3>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <p class="status-text" id="statusText">正在处理市场数据...</p>
                 </div>
-                <h3>AI正在分析您的需求...</h3>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
-                </div>
-                <p class="status-text" id="statusText">正在处理市场数据...</p>
-            </div>
 
-            <!-- 策略结果将由JS动态生成 -->
-            <div id="strategyResult" style="display: none;"></div>
-
-            <div class="step-actions">
-                <button class="btn-prev" onclick="prevStep()">
-                    <i class="fas fa-arrow-left"></i>
-                    <span>上一步</span>
-                </button>
+                <div class="step-actions">
+                    <button class="btn-prev" onclick="prevStep()">
+                        <i class="fas fa-arrow-left"></i>
+                        <span>上一步</span>
+                    </button>
             </div>
         </div>
-    </div>
+                </div>
 
-    <!-- 策略结果容器（需要JS动态填充） -->
-    <div id="strategyResult" style="display: none;"></div>
+    <script>
+        let currentStep = 1;
 
-    <!-- AUE3架构核心文件 -->
-    <script src="/web/js/core/aue3-core.js"></script>
-    <script src="/web/js/core/api-service.js"></script>
-    <script src="/web/js/shared/components.js"></script>
-    <script src="/web/js/strategy/strategy-mode.js"></script>
+        function nextStep() {
+            if (currentStep < 4) {
+                // 隐藏当前步骤
+                document.getElementById('step' + currentStep).classList.remove('active');
+                document.querySelector('.step[data-step="' + currentStep + '"]').classList.remove('active');
+                
+                // 显示下一步
+                currentStep++;
+                document.getElementById('step' + currentStep).classList.add('active');
+                document.querySelector('.step[data-step="' + currentStep + '"]').classList.add('active');
+                
+                // 如果是第2步，开始生成动画
+                if (currentStep === 2) {
+                    simulateGeneration();
+                }
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                // 隐藏当前步骤
+                document.getElementById('step' + currentStep).classList.remove('active');
+                document.querySelector('.step[data-step="' + currentStep + '"]').classList.remove('active');
+                
+                // 显示上一步
+                currentStep--;
+                document.getElementById('step' + currentStep).classList.add('active');
+                document.querySelector('.step[data-step="' + currentStep + '"]').classList.add('active');
+            }
+        }
+
+        function simulateGeneration() {
+            const progressFill = document.getElementById('progressFill');
+            const statusText = document.getElementById('statusText');
+            const statuses = [
+                '正在处理市场数据...',
+                '正在分析历史走势...',
+                '正在计算技术指标...',
+                '正在生成策略方案...',
+                '策略生成完成！'
+            ];
+            
+            let progress = 0;
+            let statusIndex = 0;
+            
+            const interval = setInterval(() => {
+                progress += 20;
+                progressFill.style.width = progress + '%';
+                
+                if (statusIndex < statuses.length) {
+                    statusText.textContent = statuses[statusIndex];
+                    statusIndex++;
+                }
+                
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        alert('策略生成功能开发中！\n\n您的策略配置：\n- 收益目标：15%\n- 风险偏好：稳健型\n- 策略类型：动量策略');
+                    }, 500);
+                }
+            }, 1000);
+        }
+
+        // 风险选择器
+        document.querySelectorAll('.risk-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.risk-option').forEach(o => o.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        // 标签选择器
+        document.querySelectorAll('.tag-item').forEach(tag => {
+            tag.addEventListener('click', function() {
+                this.classList.toggle('active');
+            });
+        });
+    </script>
 </body>
 </html>

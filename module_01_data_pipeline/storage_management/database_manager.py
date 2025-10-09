@@ -20,12 +20,15 @@ logger = setup_logger("database_manager")
 class DatabaseManager:
     """数据库管理器类"""
 
-    def __init__(self, db_path: str = "data/finloom.db"):
+    def __init__(self, db_path: str = None):
         """初始化数据库管理器
 
         Args:
             db_path: 数据库文件路径
         """
+        if db_path is None:
+            import os
+            db_path = os.path.join("data", "finloom.db")
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_database()

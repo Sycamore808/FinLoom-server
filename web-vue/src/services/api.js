@@ -72,7 +72,39 @@ export const api = {
         text,
         amount,
         risk_tolerance: riskTolerance
-      })
+      }),
+    
+    // 对话管理
+    createConversation: (userId = 'default_user', title = '新对话') =>
+      apiClient.post('/v1/chat/conversation', { user_id: userId, title }),
+    
+    getConversations: (userId = 'default_user', limit = 50) =>
+      apiClient.get('/v1/chat/conversations', { params: { user_id: userId, limit } }),
+    
+    getHistory: (conversationId) =>
+      apiClient.get(`/v1/chat/history/${conversationId}`),
+    
+    deleteConversation: (conversationId) =>
+      apiClient.delete(`/v1/chat/conversation/${conversationId}`),
+    
+    searchConversations: (query, userId = 'default_user', limit = 20) =>
+      apiClient.get('/v1/chat/search', { params: { query, user_id: userId, limit } }),
+    
+    // 收藏对话
+    addFavorite: (sessionId, data) =>
+      apiClient.post('/v1/chat/favorite', { session_id: sessionId, ...data }),
+    
+    removeFavorite: (sessionId, userId = 'default_user') =>
+      apiClient.delete(`/v1/chat/favorite/${sessionId}`, { params: { user_id: userId } }),
+    
+    getFavorites: (userId = 'default_user', limit = 50) =>
+      apiClient.get('/v1/chat/favorites', { params: { user_id: userId, limit } }),
+    
+    checkFavorite: (sessionId, userId = 'default_user') =>
+      apiClient.get(`/v1/chat/favorite/check/${sessionId}`, { params: { user_id: userId } }),
+    
+    updateFavorite: (sessionId, data) =>
+      apiClient.put(`/v1/chat/favorite/${sessionId}`, data)
   },
   
   // 仪表盘
@@ -121,6 +153,53 @@ export const api = {
       
       aggregateSentiment: (params) =>
         apiClient.post('/v1/analysis/sentiment/aggregate', params)
+    }
+  },
+  
+  // 策略管理
+  strategy: {
+    // 生成策略
+    generate: (requirements) =>
+      apiClient.post('/v1/strategy/generate', { requirements }),
+    
+    // 保存策略
+    save: (strategy) =>
+      apiClient.post('/v1/strategy/save', { strategy }),
+    
+    // 获取策略列表
+    list: (userId = 'default_user', limit = 50) =>
+      apiClient.get('/v1/strategy/list', { params: { user_id: userId, limit } }),
+    
+    // 获取策略详情
+    get: (strategyId) =>
+      apiClient.get(`/v1/strategy/${strategyId}`),
+    
+    // 删除策略
+    delete: (strategyId) =>
+      apiClient.delete(`/v1/strategy/${strategyId}`),
+    
+    // 复制策略
+    duplicate: (strategyId, name) =>
+      apiClient.post(`/v1/strategy/${strategyId}/duplicate`, { name }),
+    
+    // 优化策略
+    optimize: (parameters, symbols = ['000001']) =>
+      apiClient.post('/v1/strategy/optimize', { parameters, symbols }),
+    
+    // 回测策略
+    backtest: (strategyId, params) =>
+      apiClient.post(`/v1/strategy/${strategyId}/backtest`, params),
+    
+    // 策略模板
+    templates: {
+      list: () =>
+        apiClient.get('/v1/strategy/templates'),
+      
+      get: (templateId) =>
+        apiClient.get(`/v1/strategy/templates/${templateId}`),
+      
+      createFrom: (templateId, name, parameters = {}) =>
+        apiClient.post(`/v1/strategy/from-template/${templateId}`, { name, parameters })
     }
   },
   
