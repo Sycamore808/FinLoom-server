@@ -1,5 +1,9 @@
 <template>
-  <v-container fluid class="strategy-view pa-6">
+  <!-- 子路由视图 -->
+  <router-view v-if="$route.path !== '/dashboard/strategy'" />
+  
+  <!-- 主策略界面 -->
+  <v-container v-else fluid class="strategy-view pa-6">
     <!-- 进度条 -->
     <v-card class="mb-6" rounded="xl">
       <v-card-text class="pa-6">

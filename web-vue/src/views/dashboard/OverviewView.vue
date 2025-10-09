@@ -1,23 +1,41 @@
 <template>
   <v-container fluid class="overview-view pa-6">
+    <!-- 全局加载提示条 -->
+    <v-progress-linear
+      v-if="isLoading"
+      indeterminate
+      color="primary"
+      class="loading-bar"
+    ></v-progress-linear>
+    
     <!-- 页面头部 -->
     <div class="mb-6">
       <div class="d-flex justify-space-between align-center mb-4">
         <div>
           <h1 class="text-h3 font-weight-bold mb-2">仪表盘概览</h1>
+          <div v-if="isLoading" class="text-caption text-medium-emphasis">
+            <v-icon size="small" class="mr-1">mdi-loading mdi-spin</v-icon>
+            数据正在加载中...
+          </div>
+          <div v-else-if="lastUpdateTime" class="text-caption text-medium-emphasis">
+            <v-icon size="small" class="mr-1">mdi-update</v-icon>
+            最后更新: {{ lastUpdateTime }}
+          </div>
         </div>
         <div class="d-flex gap-2">
           <v-alert
-            type="success"
+            :type="isLoading ? 'info' : 'success'"
             variant="tonal"
             class="mb-0"
             rounded="lg"
             density="compact"
           >
             <template v-slot:prepend>
-              <v-icon>mdi-check-circle</v-icon>
+              <v-icon>{{ isLoading ? 'mdi-loading mdi-spin' : 'mdi-check-circle' }}</v-icon>
             </template>
-            <span class="text-body-2 font-weight-medium">市场正常运行</span>
+            <span class="text-body-2 font-weight-medium">
+              {{ isLoading ? '数据加载中' : '市场正常运行' }}
+            </span>
           </v-alert>
         </div>
       </div>
@@ -443,9 +461,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { useRouter } from 'vue-router'
+import { api } from '@/services/api'
 import Chart from 'chart.js/auto'
 
 const dashboardStore = useDashboardStore()
@@ -455,18 +474,21 @@ const portfolioChartRef = ref(null)
 const equityChartRef = ref(null)
 const chartPeriod = ref('3M')
 const marketLoading = ref(false)
+const isLoading = ref(true)
+const lastUpdateTime = ref('')
+let refreshInterval = null
 
 const metrics = computed(() => dashboardStore.metrics)
 const positions = computed(() => dashboardStore.positions)
 const recentTrades = computed(() => dashboardStore.recentTrades)
 
 
-// 市场指数数据
+// 市场指数数据 - 从API获取
 const marketIndices = ref([
-  { symbol: 'SH000001', name: '上证指数', value: 3000.25, change: 15.32, change_pct: 0.51 },
-  { symbol: 'SZ399001', name: '深证成指', value: 9500.15, change: -25.18, change_pct: -0.26 },
-  { symbol: 'SZ399006', name: '创业板指', value: 1850.45, change: 8.75, change_pct: 0.48 },
-  { symbol: 'HKHSI', name: '恒生指数', value: 16500.30, change: 120.45, change_pct: 0.73 }
+  { symbol: '000001.SH', name: '上证指数', value: 0, change: 0, change_pct: 0 },
+  { symbol: '399001.SZ', name: '深证成指', value: 0, change: 0, change_pct: 0 },
+  { symbol: '399006.SZ', name: '创业板指', value: 0, change: 0, change_pct: 0 },
+  { symbol: 'HSI', name: '恒生指数', value: 0, change: 0, change_pct: 0 }
 ])
 
 // 风险指标
@@ -481,10 +503,67 @@ let portfolioChart = null
 let equityChart = null
 
 onMounted(async () => {
-  await dashboardStore.refreshAll()
-  await loadMarketData()
-  initCharts()
+  // 显示加载状态
+  isLoading.value = true
+  
+  try {
+    // 并行加载数据以提高性能
+    await Promise.all([
+      dashboardStore.refreshAll(),
+      loadMarketData()
+    ])
+    
+    // 初始化图表（延迟执行避免阻塞）
+    setTimeout(() => {
+      initCharts()
+    }, 100)
+    
+    // 启动自动刷新 - 每30秒更新一次市场数据
+    startAutoRefresh()
+    
+    // 更新时间戳
+    updateLastUpdateTime()
+  } finally {
+    isLoading.value = false
+  }
 })
+
+// 组件卸载时清理定时器
+onUnmounted(() => {
+  stopAutoRefresh()
+})
+
+function startAutoRefresh() {
+  // 清除旧的定时器
+  stopAutoRefresh()
+  
+  // 每30秒刷新一次市场数据
+  refreshInterval = setInterval(async () => {
+    try {
+      await loadMarketData()
+      updateLastUpdateTime()
+      console.log('市场数据已自动刷新')
+    } catch (error) {
+      console.error('自动刷新失败:', error)
+    }
+  }, 30000) // 30秒
+}
+
+function stopAutoRefresh() {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
+  }
+}
+
+function updateLastUpdateTime() {
+  const now = new Date()
+  lastUpdateTime.value = now.toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
 
 watch(positions, () => {
   updatePortfolioChart()
@@ -729,20 +808,59 @@ function getVolatilityColor(value) {
 // 事件处理
 
 async function loadMarketData() {
-  marketLoading.value = true
+  if (!marketLoading.value) {
+    marketLoading.value = true
+  }
+  
   try {
-    // 模拟API调用
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    // 这里应该调用实际的API
+    // 调用真实的市场概览API
+    const response = await api.market.getOverview()
+    
+    if (response.data && response.data.indices) {
+      // 更新市场指数数据
+      const indices = response.data.indices
+      
+      // 映射后端数据到前端格式
+      const indexMap = {
+        '000001.SH': 0,  // 上证指数
+        '399001.SZ': 1,  // 深证成指
+        '399006.SZ': 2,  // 创业板指
+      }
+      
+      // 更新所有获取到的指数
+      indices.forEach(index => {
+        const position = indexMap[index.symbol]
+        if (position !== undefined && position < marketIndices.value.length) {
+          marketIndices.value[position] = {
+            symbol: index.symbol,
+            name: index.name,
+            value: index.value,
+            change: index.change,
+            change_pct: index.change_pct  // 后端已经是小数
+          }
+        }
+      })
+      
+      console.log('✅ 市场数据加载成功:', {
+        count: indices.length,
+        indices: indices.map(i => `${i.name}: ${i.value}`)
+      })
+    }
   } catch (error) {
-    console.error('加载市场数据失败:', error)
+    console.error('❌ 加载市场数据失败:', error)
   } finally {
     marketLoading.value = false
   }
 }
 
 async function refreshMarketData() {
-  await loadMarketData()
+  isLoading.value = true
+  try {
+    await loadMarketData()
+    updateLastUpdateTime()
+  } finally {
+    isLoading.value = false
+  }
 }
 
 
@@ -775,6 +893,16 @@ function viewAllTrades() {
 .overview-view {
   max-width: 1600px;
   margin: 0 auto;
+  position: relative;
+}
+
+// 全局加载提示条
+.loading-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
 }
 
 .metric-card {

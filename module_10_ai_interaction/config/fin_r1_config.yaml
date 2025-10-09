@@ -1,0 +1,84 @@
+# FIN-R1模型配置
+model:
+  model_path: ".Fin-R1"
+  device: "cpu"  # 或 "cuda" 如果有GPU
+  batch_size: 1
+  max_length: 2048
+  temperature: 0.7
+  top_p: 0.9
+  top_k: 50
+  do_sample: true
+  repetition_penalty: 1.1
+
+# 提示词模板
+prompts:
+  investment_analysis: |
+    用户需求：{user_input}
+    投资金额：{investment_amount}
+    风险偏好：{risk_tolerance}
+    投资期限：{investment_horizon}
+    投资目标：{investment_goals}
+    约束条件：{constraints}
+    
+    请分析以上投资需求，提供策略建议。
+
+# 性能配置
+performance:
+  timeout: 30
+  max_retries: 3
+
+# 风险参数配置
+risk_profiles:
+  conservative:
+    max_drawdown: 0.10
+    position_limit: 0.05
+    stop_loss: 0.03
+    sector_concentration: 0.25
+    var_limit: 0.02
+    sharpe_ratio_target: 1.2
+    max_leverage: 1.0
+    
+  moderate:
+    max_drawdown: 0.15
+    position_limit: 0.08
+    stop_loss: 0.05
+    sector_concentration: 0.30
+    var_limit: 0.03
+    sharpe_ratio_target: 1.0
+    max_leverage: 1.2
+    
+  aggressive:
+    max_drawdown: 0.25
+    position_limit: 0.15
+    stop_loss: 0.07
+    sector_concentration: 0.40
+    var_limit: 0.05
+    sharpe_ratio_target: 0.8
+    max_leverage: 1.5
+    
+  very_aggressive:
+    max_drawdown: 0.35
+    position_limit: 0.20
+    stop_loss: 0.10
+    sector_concentration: 0.50
+    var_limit: 0.08
+    sharpe_ratio_target: 0.6
+    max_leverage: 2.0
+
+# 投资期限风险参数
+horizon_risk_params:
+  short_term:  # < 1年
+    max_volatility: 0.20
+    liquidity_requirement: "high"
+    rebalance_frequency: "weekly"
+    
+  medium_term:  # 1-3年
+    max_volatility: 0.25
+    liquidity_requirement: "medium"
+    rebalance_frequency: "monthly"
+    
+  long_term:  # > 3年
+    max_volatility: 0.35
+    liquidity_requirement: "low"
+    rebalance_frequency: "quarterly"
+

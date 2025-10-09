@@ -4,6 +4,7 @@ FIN-R1模型集成模块
 """
 
 import json
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -58,9 +59,13 @@ class FINR1Integration:
         # 加载配置
         if config is None:
             if config_path is None:
-                config_path = "module_10_ai_interaction/config/fin_r1_config.yaml"
+                config_path = os.path.join("module_10_ai_interaction", "config", "fin_r1_config.yaml")
             config = self._load_config(config_path)
 
+        # 确保config是字典
+        if config is None:
+            config = {}
+            
         self.config = config
         model_config = config.get("model", {})
 
@@ -110,7 +115,9 @@ class FINR1Integration:
                     config_path = os.path.join(base_dir, config_path)
 
                 with open(config_path, "r", encoding="utf-8") as f:
-                    return yaml.safe_load(f)
+                    config = yaml.safe_load(f)
+                    # 确保返回字典而不是None（空文件会返回None）
+                    return config if config is not None else {}
             else:
                 logger.warning("PyYAML not available, using default config")
                 return {}

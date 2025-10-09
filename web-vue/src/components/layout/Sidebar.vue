@@ -5,14 +5,14 @@
     @mouseenter="handleMouseEnter"
     @mouseleave="handleMouseLeave"
   >
-    <!-- Logo -->
+      <!-- Logo -->
     <div class="sidebar-logo">
       <div class="logo-icon">
       <!-- 纯色图形方案（保留，已注释）
       <i class="fas fa-chart-network"></i>
       -->
       <!-- Emoji 方案（当前生效） -->
-      <span class="logo-emoji" role="img" aria-label="logo">📊</span>
+      <span class="logo-emoji" role="img" aria-label="logo">📈</span>
       <!-- 图片 Logo 方案（示例，未启用）
       <img class="logo-img" src="@/assets/logo.png" alt="FinLoom Logo" />
       -->

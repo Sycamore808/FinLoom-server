@@ -1,5 +1,9 @@
 <template>
-  <v-container fluid class="chat-view pa-0" style="height: calc(100vh - 70px - 4rem);">
+  <!-- 子路由视图 -->
+  <router-view v-if="$route.path !== '/dashboard/chat'" />
+  
+  <!-- 主聊天界面 -->
+  <v-container v-else fluid class="chat-view pa-0" style="height: calc(100vh - 70px - 4rem);">
     <v-row no-gutters style="height: 100%; flex: 1;">
       <!-- 侧边栏 -->
       <v-col cols="auto" class="sidebar-col">

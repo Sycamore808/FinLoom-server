@@ -419,7 +419,7 @@ def test_conversation_history():
     print("\n========== 测试对话历史管理 ==========")
 
     history_mgr = ConversationHistoryManager(
-        storage_path="data/test_conversation_history", storage_type="sqlite"
+        storage_path=os.path.join("data", "test_conversation_history"), storage_type="sqlite"
     )
 
     # 创建测试记录
