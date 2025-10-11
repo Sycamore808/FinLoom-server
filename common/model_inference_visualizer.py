@@ -147,7 +147,7 @@ class ModelInferenceVisualizer:
         return streamer
 
     def visualize_generation(
-        self, streamer, max_new_tokens: int, model_name: str = "FIN-R1"
+        self, streamer, max_new_tokens: int, model_name: str = "FIN-R1", timeout: int = 30
     ) -> str:
         """可视化模型生成过程
 
@@ -155,20 +155,31 @@ class ModelInferenceVisualizer:
             streamer: TextIteratorStreamer 对象
             max_new_tokens: 最大生成 token 数
             model_name: 模型名称
+            timeout: 超时时间（秒），如果超时且没有生成任何token则抛出异常
 
         Returns:
             生成的完整文本
+            
+        Raises:
+            TimeoutError: 如果超时且没有生成任何token
         """
         if not HAS_RICH or streamer is None:
             # Fallback: 简单的文本输出
             generated_text = ""
             logger.info("⚡ Streaming generation (simple mode)...")
+            start = time.time()
             try:
                 for text in streamer:
                     generated_text += text
                     print(text, end="", flush=True)
+                    # 检查超时
+                    if time.time() - start > timeout and len(generated_text) == 0:
+                        logger.error(f"⏱️ Timeout: {timeout}s elapsed with 0 tokens")
+                        raise TimeoutError(f"Generation timeout after {timeout}s with no tokens")
             except Exception as e:
                 logger.error(f"Streaming error: {e}")
+                if isinstance(e, TimeoutError):
+                    raise
             print()
             return generated_text
 
@@ -176,6 +187,7 @@ class ModelInferenceVisualizer:
         self.start_time = time.time()
         self.token_count = 0
         last_update_time = self.start_time
+        timeout_checked = False
 
         with Progress(
             SpinnerColumn(),
@@ -215,6 +227,15 @@ class ModelInferenceVisualizer:
                             speed=f"{tokens_per_sec:.2f} tok/s",
                         )
                         last_update_time = current_time
+                        
+                        # 🔑 检查超时：如果超过指定时间且没有生成任何token
+                        if elapsed > timeout and self.token_count == 0 and not timeout_checked:
+                            timeout_checked = True
+                            logger.error(f"⏱️ Timeout: {timeout}s elapsed with 0 tokens")
+                            self.console.print(
+                                f"[red]❌ Generation timeout: {timeout}s elapsed with no tokens[/red]"
+                            )
+                            raise TimeoutError(f"Generation timeout after {timeout}s with no tokens")
 
                 # 最后更新到实际完成的数量
                 elapsed = time.time() - self.start_time
@@ -228,14 +249,32 @@ class ModelInferenceVisualizer:
             except StopIteration:
                 logger.info("✅ Generation completed normally")
             except TimeoutError:
-                logger.warning("⚠️ Generation timeout - streamer timed out")
-                self.console.print("[yellow]⚠️ Generation timeout[/yellow]")
+                # 🔑 检查是否是0 token超时
+                elapsed = time.time() - self.start_time
+                if self.token_count == 0 and elapsed > timeout:
+                    logger.error(f"❌ FIN-R1 timeout with 0 tokens after {elapsed:.1f}s - will switch to Aliyun")
+                    self.console.print("[red]❌ Model timeout with 0 tokens - switching to backup[/red]")
+                    raise  # 重新抛出异常，让上层切换到阿里云
+                else:
+                    logger.warning("⚠️ Generation timeout - streamer timed out")
+                    self.console.print("[yellow]⚠️ Generation timeout[/yellow]")
             except Exception as e:
                 logger.error(f"❌ Generation error: {e}")
                 self.console.print(f"[red]❌ Error: {e}[/red]")
+                # 如果是超时相关的异常，重新抛出
+                if "timeout" in str(e).lower() or isinstance(e, TimeoutError):
+                    raise
+
+        # 🔑 最终检查：如果整个过程完成但没有生成任何token
+        elapsed = time.time() - self.start_time
+        if self.token_count == 0 and elapsed > timeout:
+            logger.error(f"❌ FIN-R1 generated 0 tokens after {elapsed:.1f}s")
+            self.console.print(
+                "[red]❌ Model generated no tokens - switching to backup service[/red]"
+            )
+            raise TimeoutError(f"Model generated 0 tokens after {elapsed:.1f}s")
 
         # 显示最终统计
-        elapsed = time.time() - self.start_time
         tokens_per_sec = self.token_count / elapsed if elapsed > 0 else 0
 
         self.console.print()

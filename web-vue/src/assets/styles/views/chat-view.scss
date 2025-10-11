@@ -77,31 +77,52 @@
 // 消息容器
 .messages-container {
   flex: 1;
-  padding: 0 24px 24px 24px;
+  padding: 16px 24px 80px 24px;
   background: rgb(var(--v-theme-surface));
   min-height: 0;
   overflow-y: auto;
   height: calc(100vh - 70px - 4rem - 140px);
+  display: flex;
+  flex-direction: column;
 }
 
 // 空状态
 .empty-state {
   text-align: center;
   padding: 0;
-  display: block;
+  display: flex;
   position: relative;
   width: 100%;
+  min-height: 100%;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding-top: 0;
 }
 
 .welcome-section {
-  max-width: 800px;
+  max-width: 900px;
   margin: 0 auto;
   width: 100%;
-  padding: 32px 24px 40px 24px;
+  padding: -50px 16px 24px 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
+  flex-shrink: 0;
+  
+  h2 {
+    font-size: 1.75rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+  
+  .text-h6 {
+    font-size: 1rem !important;
+    margin-bottom: 1.5rem !important;
+  }
+  
+  .v-avatar {
+    margin-bottom: 1rem !important;
+  }
 }
 
 .feature-highlights {
@@ -115,7 +136,14 @@
 }
 
 .quick-start-section {
-  margin-top: 32px;
+  margin-top: 16px;
+  width: 100%;
+  margin-bottom: 40px;
+  
+  h3 {
+    font-size: 1.125rem !important;
+    margin-bottom: 1.5rem !important;
+  }
 }
 
 // 快速卡片
@@ -238,13 +266,11 @@
 // 输入框样式
 .input-container {
   position: relative;
-  background: rgba(var(--v-theme-surface), 0.98);
+  background: transparent;
   padding: 16px 24px 24px 24px;
-  border-top: 1px solid rgba(var(--v-theme-outline), 0.12);
-  backdrop-filter: blur(16px);
-  z-index: 100;
+  border-top: none;
+  z-index: 50;
   border-radius: 0 0 16px 0;
-  box-shadow: 0 -4px 12px rgba(var(--v-theme-shadow), 0.08);
   flex-shrink: 0;
   margin-top: auto;
   min-height: 80px;
@@ -297,6 +323,7 @@
     box-shadow: none;
     border: none;
     background: transparent;
+    min-height: 48px;
   }
   
   :deep(.v-field__input) {
@@ -304,6 +331,7 @@
     font-size: 14px;
     line-height: 1.5;
     resize: none;
+    min-height: 48px;
   }
   
   :deep(.v-field__outline) {
@@ -399,7 +427,7 @@
   }
   
   .messages-container {
-    padding: 0 16px 16px 16px;
+    padding: 8px 16px 16px 16px;
     height: calc(100vh - 70px - 2rem - 120px);
   }
   
@@ -408,7 +436,28 @@
   }
   
   .welcome-section {
-    padding: 24px 16px 20px 16px;
+    padding: 4px 12px 16px 12px;
+    
+    h2 {
+      font-size: 1.5rem !important;
+    }
+    
+    .text-body-1 {
+      font-size: 0.875rem !important;
+    }
+    
+    .v-avatar {
+      margin-bottom: 0.75rem !important;
+    }
+  }
+  
+  .quick-start-section {
+    margin-top: 4px;
+    
+    h3 {
+      font-size: 1rem !important;
+      margin-bottom: 0.75rem !important;
+    }
   }
   
   .input-container {

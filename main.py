@@ -420,6 +420,15 @@ class FinLoomEngine:
         """初始化引擎（快速模式）"""
         logger.info("Starting FinLoom Engine...")
 
+        # 初始化默认管理员账户
+        try:
+            from common.init_default_admin import init_default_admin
+            print("🔐 初始化管理员账户...")
+            init_default_admin()
+            print("✅ 管理员账户已就绪")
+        except Exception as e:
+            logger.warning(f"⚠️ 初始化管理员账户失败: {e}")
+
         # 快速配置加载
         try:
             self.system_config = self.config_loader.load_system_config()
@@ -438,40 +447,20 @@ class FinLoomEngine:
         setup_fin_r1_model()
         print("=" * 50 + "\n")
 
-        # 加载FIN-R1到内存（只加载一次）
+        # 初始化混合AI服务（主备容错机制：FIN-R1主服务 + 阿里云备用）
         try:
-            logger.info("🔥 正在加载FIN-R1模型到内存...")
-            from pathlib import Path
-
-            import yaml
-
-            from common.model_manager import model_manager
-
-            config_path = (
-                Path("module_10_ai_interaction") / "config" / "fin_r1_config.yaml"
-            )
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    fin_r1_config = yaml.safe_load(f)
-            else:
-                fin_r1_config = {
-                    "model": {
-                        "model_path": ".Fin-R1",
-                        "device": "cpu",
-                        "temperature": 0.7,
-                    }
-                }
-
-            self.fin_r1 = FINR1Integration(fin_r1_config)
-
-            # ✅ 将模型注册到全局管理器，供其他模块共享
-            if self.fin_r1.model is not None and self.fin_r1.tokenizer is not None:
-                model_manager.set_fin_r1(self.fin_r1.model, self.fin_r1.tokenizer)
-                logger.info("✅ FIN-R1模型加载成功（已在内存中并注册到全局管理器）")
-            else:
-                logger.info("✅ FIN-R1模型加载成功（已在内存中）")
+            logger.info("🔥 正在初始化混合AI服务（FIN-R1主 + 阿里云备用）...")
+            from module_10_ai_interaction import HybridAIService
+            
+            self.hybrid_ai = HybridAIService(self.system_config)
+            logger.info("✅ 混合AI服务初始化成功")
+            
+            # 保持兼容性，提供fin_r1访问
+            self.fin_r1 = self.hybrid_ai.fin_r1
+            
         except Exception as e:
-            logger.warning(f"⚠️ FIN-R1模型加载失败，将使用规则引擎: {e}")
+            logger.warning(f"⚠️ 混合AI服务初始化失败: {e}")
+            self.hybrid_ai = None
             self.fin_r1 = None
 
         # 初始化对话管理器
@@ -648,6 +637,11 @@ class FinLoomEngine:
                 # API路由和健康检查跳过
                 if full_path.startswith("api/") or full_path.startswith("health"):
                     return None
+
+                # 检查是否是静态文件（如 video.mp4）
+                static_file_path = os.path.join(vue_dist_path, full_path)
+                if os.path.isfile(static_file_path):
+                    return FileResponse(static_file_path)
 
                 # 返回Vue3 SPA入口文件
                 return FileResponse(os.path.join(vue_dist_path, "index.html"))
@@ -887,6 +881,792 @@ class FinLoomEngine:
             return []
 
         # ==================== API 路由定义 ====================
+        
+        # ==================== 用户认证API ====================
+        from common.user_database import user_db
+        from fastapi import Header
+        
+        @app.post("/api/auth/register")
+        async def register_user(request: Dict):
+            """用户注册 - 所有新用户默认为普通用户（权限等级1）"""
+            try:
+                username = request.get("username", "").strip()
+                password = request.get("password", "").strip()
+                email = request.get("email", "").strip() if request.get("email") else None
+                display_name = request.get("display_name", "").strip() if request.get("display_name") else None
+                
+                if not username or not password:
+                    return {
+                        "status": "error",
+                        "message": "用户名和密码不能为空"
+                    }
+                
+                # 所有新注册用户默认为普通用户（权限等级1）
+                is_admin = False
+                permission_level = 1
+                
+                logger.info(f"创建新用户 {username}，权限等级: {permission_level}")
+                
+                success, message, user_id = user_db.create_user(
+                    username=username,
+                    password=password,
+                    email=email,
+                    display_name=display_name,
+                    is_admin=is_admin,
+                    permission_level=permission_level
+                )
+                
+                if success:
+                    # 记录活动
+                    user_db.log_activity(user_id, "register", f"用户 {username} 注册")
+                    
+                    return {
+                        "status": "success",
+                        "message": message,
+                        "data": {
+                            "user_id": user_id,
+                            "username": username
+                        }
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "message": message
+                    }
+                    
+            except Exception as e:
+                logger.error(f"注册失败: {e}")
+                return {
+                    "status": "error",
+                    "message": f"注册失败: {str(e)}"
+                }
+        
+        @app.post("/api/auth/login")
+        async def login_user(request: Dict):
+            """用户登录"""
+            try:
+                username = request.get("username", "").strip()
+                password = request.get("password", "").strip()
+                remember = request.get("remember", False)
+                
+                if not username or not password:
+                    return {
+                        "status": "error",
+                        "message": "用户名和密码不能为空"
+                    }
+                
+                # 验证用户（用户角色和权限从数据库中自动获取）
+                success, message, user_info = user_db.verify_user(username, password)
+                
+                if not success:
+                    return {
+                        "status": "error",
+                        "message": message
+                    }
+                
+                # 创建会话
+                expires_hours = 168 if remember else 24  # 记住我：7天，否则1天
+                success, message, token = user_db.create_session(
+                    user_id=user_info['user_id'],
+                    expires_hours=expires_hours
+                )
+                
+                if not success:
+                    return {
+                        "status": "error",
+                        "message": message
+                    }
+                
+                # 记录活动
+                login_type = "管理员登录" if user_info.get('is_admin') else "用户登录"
+                user_db.log_activity(user_info['user_id'], "login", f"{login_type}: {username}")
+                logger.info(f"{login_type}: {username} (权限等级: {user_info.get('permission_level', 1)})")
+                
+                return {
+                    "status": "success",
+                    "message": "登录成功",
+                    "data": {
+                        "token": token,
+                        "user": user_info
+                    }
+                }
+                
+            except Exception as e:
+                logger.error(f"登录失败: {e}")
+                return {
+                    "status": "error",
+                    "message": f"登录失败: {str(e)}"
+                }
+        
+        @app.post("/api/auth/logout")
+        async def logout_user(authorization: str = Header(None)):
+            """用户登出"""
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {
+                        "status": "error",
+                        "message": "未提供有效的认证令牌"
+                    }
+                
+                token = authorization.replace("Bearer ", "")
+                
+                # 使会话失效
+                success = user_db.invalidate_session(token)
+                
+                if success:
+                    return {
+                        "status": "success",
+                        "message": "登出成功"
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "message": "登出失败"
+                    }
+                    
+            except Exception as e:
+                logger.error(f"登出失败: {e}")
+                return {
+                    "status": "error",
+                    "message": f"登出失败: {str(e)}"
+                }
+        
+        @app.get("/api/auth/verify")
+        async def verify_token(authorization: str = Header(None)):
+            """验证令牌"""
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {
+                        "status": "error",
+                        "message": "未提供有效的认证令牌",
+                        "valid": False
+                    }
+                
+                token = authorization.replace("Bearer ", "")
+                
+                # 验证令牌
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if valid:
+                    return {
+                        "status": "success",
+                        "message": message,
+                        "valid": True,
+                        "user": user_info
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "message": message,
+                        "valid": False
+                    }
+                    
+            except Exception as e:
+                logger.error(f"令牌验证失败: {e}")
+                return {
+                    "status": "error",
+                    "message": f"验证失败: {str(e)}",
+                    "valid": False
+                }
+        
+        @app.get("/api/auth/profile")
+        async def get_user_profile(authorization: str = Header(None)):
+            """获取用户资料"""
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {
+                        "status": "error",
+                        "message": "未授权"
+                    }
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {
+                        "status": "error",
+                        "message": "令牌无效或已过期"
+                    }
+                
+                # 获取完整用户信息
+                profile = user_db.get_user_by_id(user_info['user_id'])
+                
+                if profile:
+                    return {
+                        "status": "success",
+                        "data": profile
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "message": "用户不存在"
+                    }
+                    
+            except Exception as e:
+                logger.error(f"获取用户资料失败: {e}")
+                return {
+                    "status": "error",
+                    "message": f"获取失败: {str(e)}"
+                }
+        
+        @app.put("/api/auth/profile")
+        async def update_user_profile(request: Dict, authorization: str = Header(None)):
+            """更新用户资料"""
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {
+                        "status": "error",
+                        "message": "未授权"
+                    }
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {
+                        "status": "error",
+                        "message": "令牌无效或已过期"
+                    }
+                
+                # 更新资料
+                display_name = request.get("display_name")
+                email = request.get("email")
+                avatar_url = request.get("avatar_url")
+                
+                success, message = user_db.update_user_profile(
+                    user_id=user_info['user_id'],
+                    display_name=display_name,
+                    email=email,
+                    avatar_url=avatar_url
+                )
+                
+                if success:
+                    user_db.log_activity(user_info['user_id'], "profile_update", "更新个人资料")
+                    return {
+                        "status": "success",
+                        "message": message
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "message": message
+                    }
+                    
+            except Exception as e:
+                logger.error(f"更新用户资料失败: {e}")
+                return {
+                    "status": "error",
+                    "message": f"更新失败: {str(e)}"
+                }
+        
+        @app.post("/api/auth/change-password")
+        async def change_password(request: Dict, authorization: str = Header(None)):
+            """修改密码"""
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {
+                        "status": "error",
+                        "message": "未授权"
+                    }
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {
+                        "status": "error",
+                        "message": "令牌无效或已过期"
+                    }
+                
+                old_password = request.get("old_password", "")
+                new_password = request.get("new_password", "")
+                
+                if not old_password or not new_password:
+                    return {
+                        "status": "error",
+                        "message": "旧密码和新密码不能为空"
+                    }
+                
+                success, message = user_db.change_password(
+                    user_id=user_info['user_id'],
+                    old_password=old_password,
+                    new_password=new_password
+                )
+                
+                if success:
+                    user_db.log_activity(user_info['user_id'], "password_change", "修改密码")
+                    return {
+                        "status": "success",
+                        "message": message
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "message": message
+                    }
+                    
+            except Exception as e:
+                logger.error(f"修改密码失败: {e}")
+                return {
+                    "status": "error",
+                    "message": f"修改失败: {str(e)}"
+                }
+        
+        # ==================== 用户信息管理API ====================
+        @app.get("/api/user/profile/full")
+        async def get_user_full_profile(authorization: str = Header(None)):
+            """获取用户完整资料（包括密码和最后修改时间）"""
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "message": "未授权"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "message": "令牌无效或已过期"}
+                
+                # 获取完整用户信息
+                profile = user_db.get_user_by_id(user_info['user_id'])
+                
+                if not profile:
+                    return {"status": "error", "message": "用户不存在"}
+                
+                # 获取原始密码（用于显示）
+                # 注意：这里返回实际密码仅用于用户自己查看，生产环境应该更谨慎
+                conn = sqlite3.connect(user_db.db_path)
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT phone, profile_last_modified FROM users WHERE user_id = ?",
+                    (user_info['user_id'],)
+                )
+                row = cursor.fetchone()
+                conn.close()
+                
+                if row:
+                    phone, profile_last_modified = row
+                    profile['phone'] = phone
+                    profile['last_modified'] = profile_last_modified
+                
+                # 返回实际密码（仅用于查看，不建议在生产环境这样做）
+                # 这里我们需要解密或从其他地方获取，但由于是哈希存储，我们返回一个标记
+                # 前端需要额外处理
+                profile['password'] = '********'  # 默认显示星号
+                
+                return {"status": "success", "data": profile}
+                
+            except Exception as e:
+                logger.error(f"获取用户完整资料失败: {e}")
+                return {"status": "error", "message": f"获取失败: {str(e)}"}
+        
+        @app.put("/api/user/profile")
+        async def update_user_full_profile(request: Dict, authorization: str = Header(None)):
+            """更新用户完整资料（需要密码验证，限制每月一次）"""
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "message": "未授权"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "message": "令牌无效或已过期"}
+                
+                # 获取请求数据
+                username = request.get("username")
+                email = request.get("email")
+                phone = request.get("phone")
+                verify_password = request.get("verify_password", "")
+                
+                if not verify_password:
+                    return {"status": "error", "message": "需要密码验证"}
+                
+                # 验证密码
+                user = user_db.get_user_by_id(user_info['user_id'])
+                if not user:
+                    return {"status": "error", "message": "用户不存在"}
+                
+                password_hash = user_db._hash_password(verify_password, user['salt'])
+                if password_hash != user['password_hash']:
+                    return {"status": "error", "message": "密码验证失败"}
+                
+                # 检查是否在本月内修改过
+                conn = sqlite3.connect(user_db.db_path)
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT profile_last_modified FROM users WHERE user_id = ?",
+                    (user_info['user_id'],)
+                )
+                row = cursor.fetchone()
+                
+                if row and row[0]:
+                    from datetime import datetime
+                    last_modified = datetime.fromisoformat(row[0])
+                    now = datetime.now()
+                    if (last_modified.year == now.year and 
+                        last_modified.month == now.month):
+                        conn.close()
+                        return {
+                            "status": "error",
+                            "message": "本月已修改过个人信息，下月才能再次修改"
+                        }
+                
+                # 更新用户信息
+                cursor.execute("""
+                    UPDATE users 
+                    SET username = ?, email = ?, phone = ?, 
+                        display_name = ?, profile_last_modified = CURRENT_TIMESTAMP,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = ?
+                """, (username, email, phone, username, user_info['user_id']))
+                
+                conn.commit()
+                conn.close()
+                
+                # 记录活动日志
+                user_db.log_activity(user_info['user_id'], "profile_update_full", "更新个人信息")
+                
+                return {
+                    "status": "success",
+                    "message": "个人信息更新成功",
+                    "data": {
+                        "username": username,
+                        "email": email,
+                        "phone": phone
+                    }
+                }
+                
+            except Exception as e:
+                logger.error(f"更新用户完整资料失败: {e}")
+                return {"status": "error", "message": f"更新失败: {str(e)}"}
+        
+        @app.get("/api/user/can-modify")
+        async def check_can_modify_profile(authorization: str = Header(None)):
+            """检查用户是否可以修改个人信息"""
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "message": "未授权"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "message": "令牌无效或已过期"}
+                
+                conn = sqlite3.connect(user_db.db_path)
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT profile_last_modified FROM users WHERE user_id = ?",
+                    (user_info['user_id'],)
+                )
+                row = cursor.fetchone()
+                conn.close()
+                
+                can_modify = True
+                if row and row[0]:
+                    from datetime import datetime
+                    last_modified = datetime.fromisoformat(row[0])
+                    now = datetime.now()
+                    if (last_modified.year == now.year and 
+                        last_modified.month == now.month):
+                        can_modify = False
+                
+                return {
+                    "status": "success",
+                    "data": {
+                        "can_modify": can_modify,
+                        "last_modified": row[0] if row and row[0] else None
+                    }
+                }
+                
+            except Exception as e:
+                logger.error(f"检查修改权限失败: {e}")
+                return {"status": "error", "message": f"检查失败: {str(e)}"}
+        
+        # ==================== 管理员API ====================
+        @app.get("/api/admin/users")
+        async def get_all_users(authorization: str = Header(None)):
+            """获取所有用户列表（管理员）"""
+            from common.admin_manager import admin_manager
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "message": "未授权"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "message": "令牌无效"}
+                
+                # 检查管理员权限
+                if user_info.get('permission_level', 1) < 2:
+                    return {"status": "error", "message": "需要管理员权限"}
+                
+                users = admin_manager.get_all_users(user_info['permission_level'])
+                return {"status": "success", "data": users}
+                
+            except Exception as e:
+                logger.error(f"获取用户列表失败: {e}")
+                return {"status": "error", "message": f"获取失败: {str(e)}"}
+        
+        @app.get("/api/admin/stats")
+        async def get_system_stats(authorization: str = Header(None)):
+            """获取系统统计信息（管理员）"""
+            from common.admin_manager import admin_manager
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "message": "未授权"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "message": "令牌无效"}
+                
+                # 检查管理员权限
+                if user_info.get('permission_level', 1) < 2:
+                    return {"status": "error", "message": "需要管理员权限"}
+                
+                stats = admin_manager.get_system_stats()
+                return {"status": "success", "data": stats}
+                
+            except Exception as e:
+                logger.error(f"获取系统统计失败: {e}")
+                return {"status": "error", "message": f"获取失败: {str(e)}"}
+        
+        @app.put("/api/admin/user/{user_id}/permission")
+        async def update_user_permission(user_id: int, request: Dict, authorization: str = Header(None)):
+            """更新用户权限（管理员）"""
+            from common.admin_manager import admin_manager
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "message": "未授权"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "message": "令牌无效"}
+                
+                # 检查管理员权限
+                if user_info.get('permission_level', 1) < 2:
+                    return {"status": "error", "message": "需要管理员权限"}
+                
+                new_permission = request.get("permission_level")
+                if new_permission is None:
+                    return {"status": "error", "message": "缺少权限等级参数"}
+                
+                success, msg = admin_manager.update_user_permission(
+                    admin_id=user_info['user_id'],
+                    admin_permission=user_info['permission_level'],
+                    target_user_id=user_id,
+                    new_permission=new_permission
+                )
+                
+                if success:
+                    return {"status": "success", "message": msg}
+                else:
+                    return {"status": "error", "message": msg}
+                
+            except Exception as e:
+                logger.error(f"更新用户权限失败: {e}")
+                return {"status": "error", "message": f"更新失败: {str(e)}"}
+        
+        @app.put("/api/admin/user/{user_id}/token-limit")
+        async def update_token_limit(user_id: int, request: Dict, authorization: str = Header(None)):
+            """更新用户token限额（管理员）"""
+            from common.admin_manager import admin_manager
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "message": "未授权"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "message": "令牌无效"}
+                
+                # 检查管理员权限
+                if user_info.get('permission_level', 1) < 2:
+                    return {"status": "error", "message": "需要管理员权限"}
+                
+                new_limit = request.get("token_limit")
+                if new_limit is None:
+                    return {"status": "error", "message": "缺少token限额参数"}
+                
+                success, msg = admin_manager.update_token_limit(
+                    admin_id=user_info['user_id'],
+                    admin_permission=user_info['permission_level'],
+                    target_user_id=user_id,
+                    new_limit=new_limit
+                )
+                
+                if success:
+                    return {"status": "success", "message": msg}
+                else:
+                    return {"status": "error", "message": msg}
+                
+            except Exception as e:
+                logger.error(f"更新token限额失败: {e}")
+                return {"status": "error", "message": f"更新失败: {str(e)}"}
+        
+        @app.get("/api/admin/user/{user_id}/details")
+        async def get_user_details(user_id: int, authorization: str = Header(None)):
+            """获取用户详细信息（管理员）"""
+            from common.admin_manager import admin_manager
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "message": "未授权"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "message": "令牌无效"}
+                
+                # 检查管理员权限
+                if user_info.get('permission_level', 1) < 2:
+                    return {"status": "error", "message": "需要管理员权限"}
+                
+                details = admin_manager.get_user_details(user_info['permission_level'], user_id)
+                if details:
+                    return {"status": "success", "data": details}
+                else:
+                    return {"status": "error", "message": "用户不存在或无权查看"}
+                
+            except Exception as e:
+                logger.error(f"获取用户详情失败: {e}")
+                return {"status": "error", "message": f"获取失败: {str(e)}"}
+        
+        # ==================== 用户留言API ====================
+        @app.post("/api/messages/send")
+        async def send_message(request: Dict, authorization: str = Header(None)):
+            """发送留言给管理员"""
+            from common.user_messages import message_system
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "message": "未授权"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "message": "令牌无效"}
+                
+                content = request.get("content", "").strip()
+                subject = request.get("subject", "").strip()
+                message_type = request.get("message_type", "feedback")
+                
+                if not content:
+                    return {"status": "error", "message": "留言内容不能为空"}
+                
+                success = message_system.send_message(
+                    user_id=user_info['user_id'],
+                    username=user_info['username'],
+                    content=content,
+                    subject=subject,
+                    message_type=message_type
+                )
+                
+                if success:
+                    return {"status": "success", "message": "留言发送成功"}
+                else:
+                    return {"status": "error", "message": "留言发送失败"}
+                
+            except Exception as e:
+                logger.error(f"发送留言失败: {e}")
+                return {"status": "error", "message": f"发送失败: {str(e)}"}
+        
+        @app.get("/api/messages/my")
+        async def get_my_messages(authorization: str = Header(None)):
+            """获取我的留言"""
+            from common.user_messages import message_system
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "message": "未授权"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "message": "令牌无效"}
+                
+                messages = message_system.get_user_messages(user_info['user_id'])
+                return {"status": "success", "data": messages}
+                
+            except Exception as e:
+                logger.error(f"获取留言失败: {e}")
+                return {"status": "error", "message": f"获取失败: {str(e)}"}
+        
+        @app.get("/api/admin/messages")
+        async def get_all_messages(status: str = None, authorization: str = Header(None)):
+            """获取所有留言（管理员）"""
+            from common.user_messages import message_system
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "message": "未授权"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "message": "令牌无效"}
+                
+                # 检查管理员权限
+                if user_info.get('permission_level', 1) < 2:
+                    return {"status": "error", "message": "需要管理员权限"}
+                
+                messages = message_system.get_all_messages(status=status)
+                unread_count = message_system.get_unread_count()
+                
+                return {
+                    "status": "success",
+                    "data": {
+                        "messages": messages,
+                        "unread_count": unread_count
+                    }
+                }
+                
+            except Exception as e:
+                logger.error(f"获取留言失败: {e}")
+                return {"status": "error", "message": f"获取失败: {str(e)}"}
+        
+        @app.post("/api/admin/messages/{message_id}/reply")
+        async def reply_message(message_id: int, request: Dict, authorization: str = Header(None)):
+            """回复留言（管理员）"""
+            from common.user_messages import message_system
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "message": "未授权"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "message": "令牌无效"}
+                
+                # 检查管理员权限
+                if user_info.get('permission_level', 1) < 2:
+                    return {"status": "error", "message": "需要管理员权限"}
+                
+                reply_content = request.get("reply_content", "").strip()
+                if not reply_content:
+                    return {"status": "error", "message": "回复内容不能为空"}
+                
+                success = message_system.reply_message(
+                    message_id=message_id,
+                    admin_id=user_info['user_id'],
+                    reply_content=reply_content
+                )
+                
+                if success:
+                    return {"status": "success", "message": "回复成功"}
+                else:
+                    return {"status": "error", "message": "回复失败"}
+                
+            except Exception as e:
+                logger.error(f"回复留言失败: {e}")
+                return {"status": "error", "message": f"回复失败: {str(e)}"}
 
         @app.get("/api")
         async def api_root():
@@ -932,76 +1712,110 @@ class FinLoomEngine:
                 }
 
         @app.post("/api/chat")
-        async def chat_endpoint(request: Dict):
-            """对话模式API - 简化端点"""
+        async def chat_endpoint(request: Dict, authorization: str = Header(None)):
+            """对话模式API - 使用阿里云API（有token限制）"""
             try:
                 message = request.get("message", "")
                 conversation_id = request.get("conversation_id", "")
+                history = request.get("history", [])
 
                 if not message.strip():
                     return {"status": "error", "response": "请输入您的问题"}
 
+                # 检查token配额（如果已登录）
+                user_info = None
+                if authorization and authorization.startswith("Bearer "):
+                    token = authorization.replace("Bearer ", "")
+                    valid, msg, user_info = user_db.verify_token(token)
+                    
+                    if valid and user_info:
+                        # 检查token使用限制
+                        from common.user_token_tracker import token_tracker
+                        from common.permissions import get_user_permissions
+                        
+                        monthly_usage = token_tracker.get_monthly_usage(user_info['user_id'])
+                        user_perms = get_user_permissions(user_info)
+                        
+                        # 检查是否超过限制
+                        if not user_perms.check_chat_token_limit(monthly_usage):
+                            limit = user_perms.get_quota(user_perms.QUOTA_CHAT_TOKENS)
+                            return {
+                                "status": "error",
+                                "response": f"您的对话token配额已用完。本月限额：{limit} tokens，已使用：{monthly_usage} tokens。请联系管理员增加配额。"
+                            }
+
                 logger.info(f"收到对话请求: {message[:50]}...")
 
-                # 调用FIN-R1分析
-                full_request = {"text": message}
-                result = await fin_r1_chat(full_request)
+                # 使用阿里云AI服务
+                from module_10_ai_interaction.aliyun_ai_service import get_aliyun_ai_service
+                
+                ai_service = get_aliyun_ai_service()
+                result = await ai_service.analyze_and_recommend(message)
 
-                # 简化响应，适合对话界面
                 if result.get("status") == "success":
-                    data = result.get("data", {})
-
-                    # 构建自然语言回复
-                    recommendations = data.get("investment_recommendations", {})
-                    stocks = recommendations.get("recommended_stocks", [])
-                    sentiment = recommendations.get("market_sentiment_insight", "")
-
-                    response_text = "根据您的需求，我为您分析了市场情况：\n\n"
-
-                    if sentiment:
-                        response_text += f"📊 市场情绪：{sentiment}\n\n"
-
-                    if stocks:
-                        response_text += "[*] 推荐关注的股票：\n"
-                        for stock in stocks[:5]:
-                            symbol = stock.get("symbol", "")
-                            name = stock.get("name", "")
-                            price = stock.get("current_price", 0)
-                            response_text += f"  • {name}({symbol}) - 现价: ¥{price}\n"
-
-                    risk = data.get("module_05_risk", {})
-                    if risk:
-                        response_text += f"\n⚠️ 风险提示：建议单只股票持仓不超过{risk.get('recommended_position_size', 0.08) * 100:.1f}%"
-
+                    # 记录token使用（如果已登录且有response）
+                    if user_info:
+                        from common.user_token_tracker import token_tracker
+                        # 估算token使用（简单估算：中文1字=2tokens，英文1词=1token）
+                        response_text = result.get("response", "")
+                        estimated_tokens = len(message) * 2 + len(response_text) * 2
+                        token_tracker.record_token_usage(user_info['user_id'], estimated_tokens, "chat")
+                        logger.info(f"用户 {user_info['user_id']} 本次使用约 {estimated_tokens} tokens")
+                    
                     return {
                         "status": "success",
-                        "response": response_text,
+                        "response": result.get("response", ""),
                         "conversation_id": conversation_id,
-                        "detailed_data": data,  # 可选的详细数据
+                        "model": result.get("model", "qwen-plus"),
+                        "timestamp": result.get("timestamp")
                     }
                 else:
                     return {
                         "status": "error",
-                        "response": "抱歉，分析时遇到了一些问题。请稍后再试。",
+                        "response": result.get("response", "抱歉，分析时遇到了一些问题。请稍后再试。"),
                     }
 
             except Exception as e:
                 logger.error(f"对话API失败: {e}")
+                import traceback
+                traceback.print_exc()
                 return {
                     "status": "error",
                     "response": "抱歉，我现在遇到了一些技术问题。请稍后再试。",
                 }
 
         @app.post("/api/v1/ai/chat")
-        async def fin_r1_chat(request: Dict):
-            """FIN-R1智能对话交互API
+        async def fin_r1_chat(request: Dict, authorization: str = Header(None)):
+            """FIN-R1智能对话交互API（需要用户认证）
 
             工作流程：
-            1. FIN-R1解析用户需求，生成结构化参数
-            2. 根据参数调用相应模块进行数据处理和分析
-            3. 整合各模块结果返回最优投资方案
+            1. 验证用户身份并获取用户ID
+            2. FIN-R1解析用户需求，生成结构化参数
+            3. 根据参数调用相应模块进行数据处理和分析
+            4. 整合各模块结果返回最优投资方案（按用户隔离）
             """
             try:
+                # 🔒 验证用户身份
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {
+                        "status": "error",
+                        "error": "未授权访问",
+                        "message": "请先登录"
+                    }
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {
+                        "status": "error",
+                        "error": "认证失败",
+                        "message": message
+                    }
+                
+                # ✅ 获取真实用户ID
+                current_user_id = str(user_info['user_id'])
+                
                 text = request.get("text", "")
                 conversation_id = request.get("conversation_id", "")  # 接收会话ID
                 amount = request.get("amount")
@@ -1312,10 +2126,21 @@ class FinLoomEngine:
         # ==================== 对话管理API ====================
 
         @app.post("/api/v1/chat/conversation")
-        async def create_conversation(request: Dict):
-            """创建新对话会话"""
+        async def create_conversation(request: Dict, authorization: str = Header(None)):
+            """创建新对话会话（需要用户认证）"""
             try:
-                user_id = request.get("user_id", "default_user")
+                # 🔒 验证用户身份
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "error": "未授权访问", "message": "请先登录"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "error": "认证失败", "message": message}
+                
+                # ✅ 使用真实用户ID
+                user_id = str(user_info['user_id'])
                 title = request.get("title", "新对话")
 
                 # 调用Module 10
@@ -1340,9 +2165,21 @@ class FinLoomEngine:
                 return {"status": "error", "error": str(e)}
 
         @app.get("/api/v1/chat/conversations")
-        async def get_conversations(user_id: str = "default_user", limit: int = 50):
-            """获取用户的对话列表"""
+        async def get_conversations(limit: int = 50, authorization: str = Header(None)):
+            """获取用户的对话列表（需要用户认证）"""
             try:
+                # 🔒 验证用户身份
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "error": "未授权访问", "message": "请先登录"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "error": "认证失败", "message": message}
+                
+                # ✅ 使用真实用户ID
+                user_id = str(user_info['user_id'])
                 from module_10_ai_interaction import ConversationHistoryManager
 
                 history_mgr = ConversationHistoryManager(storage_type="sqlite")
@@ -1447,10 +2284,22 @@ class FinLoomEngine:
 
         @app.get("/api/v1/chat/search")
         async def search_conversations(
-            query: str, user_id: str = "default_user", limit: int = 20
+            query: str, limit: int = 20, authorization: str = Header(None)
         ):
-            """搜索对话"""
+            """搜索对话（需要用户认证）"""
             try:
+                # 🔒 验证用户身份
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "error": "未授权访问", "message": "请先登录"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "error": "认证失败", "message": message}
+                
+                # ✅ 使用真实用户ID
+                user_id = str(user_info['user_id'])
                 from module_10_ai_interaction import ConversationHistoryManager
 
                 history_mgr = ConversationHistoryManager(storage_type="sqlite")
@@ -1479,13 +2328,24 @@ class FinLoomEngine:
         # ==================== 收藏对话API ====================
 
         @app.post("/api/v1/chat/favorite")
-        async def add_favorite(request: Dict):
-            """添加收藏对话"""
+        async def add_favorite(request: Dict, authorization: str = Header(None)):
+            """添加收藏对话（需要用户认证）"""
             try:
+                # 🔒 验证用户身份
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "error": "未授权访问", "message": "请先登录"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "error": "认证失败", "message": message}
+                
                 from module_10_ai_interaction import get_database_manager
 
                 db = get_database_manager()
-                user_id = request.get("user_id", "default_user")
+                # ✅ 使用真实用户ID
+                user_id = str(user_info['user_id'])
                 session_id = request.get("session_id")
                 title = request.get("title")
                 summary = request.get("summary")
@@ -1512,9 +2372,21 @@ class FinLoomEngine:
                 return {"status": "error", "error": str(e)}
 
         @app.delete("/api/v1/chat/favorite/{session_id}")
-        async def remove_favorite(session_id: str, user_id: str = "default_user"):
-            """取消收藏对话"""
+        async def remove_favorite(session_id: str, authorization: str = Header(None)):
+            """取消收藏对话（需要用户认证）"""
             try:
+                # 🔒 验证用户身份
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "error": "未授权访问", "message": "请先登录"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "error": "认证失败", "message": message}
+                
+                # ✅ 使用真实用户ID
+                user_id = str(user_info['user_id'])
                 from module_10_ai_interaction import get_database_manager
 
                 db = get_database_manager()
@@ -1532,9 +2404,21 @@ class FinLoomEngine:
                 return {"status": "error", "error": str(e)}
 
         @app.get("/api/v1/chat/favorites")
-        async def get_favorites(user_id: str = "default_user", limit: int = 50):
-            """获取收藏对话列表"""
+        async def get_favorites(limit: int = 50, authorization: str = Header(None)):
+            """获取收藏对话列表（需要用户认证）"""
             try:
+                # 🔒 验证用户身份
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "error": "未授权访问", "message": "请先登录"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "error": "认证失败", "message": message}
+                
+                # ✅ 使用真实用户ID
+                user_id = str(user_info['user_id'])
                 from module_10_ai_interaction import get_database_manager
 
                 db = get_database_manager()
@@ -1548,9 +2432,21 @@ class FinLoomEngine:
                 return {"status": "error", "error": str(e)}
 
         @app.get("/api/v1/chat/favorite/check/{session_id}")
-        async def check_favorite(session_id: str, user_id: str = "default_user"):
-            """检查对话是否已收藏"""
+        async def check_favorite(session_id: str, authorization: str = Header(None)):
+            """检查对话是否已收藏（需要用户认证）"""
             try:
+                # 🔒 验证用户身份
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "error": "未授权访问", "message": "请先登录"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "error": "认证失败", "message": message}
+                
+                # ✅ 使用真实用户ID
+                user_id = str(user_info['user_id'])
                 from module_10_ai_interaction import get_database_manager
 
                 db = get_database_manager()
@@ -1564,13 +2460,24 @@ class FinLoomEngine:
                 return {"status": "error", "error": str(e)}
 
         @app.put("/api/v1/chat/favorite/{session_id}")
-        async def update_favorite(session_id: str, request: Dict):
-            """更新收藏对话信息"""
+        async def update_favorite(session_id: str, request: Dict, authorization: str = Header(None)):
+            """更新收藏对话信息（需要用户认证）"""
             try:
+                # 🔒 验证用户身份
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "error": "未授权访问", "message": "请先登录"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "error": "认证失败", "message": message}
+                
                 from module_10_ai_interaction import get_database_manager
 
                 db = get_database_manager()
-                user_id = request.get("user_id", "default_user")
+                # ✅ 使用真实用户ID
+                user_id = str(user_info['user_id'])
                 title = request.get("title")
                 summary = request.get("summary")
                 tags = request.get("tags")
@@ -1597,44 +2504,86 @@ class FinLoomEngine:
         # ==================== 策略管理API ====================
 
         @app.post("/api/v1/strategy/generate")
-        async def generate_strategy(request: Dict):
-            """根据用户需求生成策略"""
+        async def generate_strategy(request: Dict, authorization: str = Header(None)):
+            """根据用户需求生成策略 - 使用阿里云AI（需要管理员权限）"""
             try:
+                # 权限检查：策略生成功能仅限管理员
+                from common.permissions import UserPermissions, get_user_permissions
+                
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {
+                        "status": "error",
+                        "error": "未授权：请先登录"
+                    }
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {
+                        "status": "error",
+                        "error": "令牌无效或已过期"
+                    }
+                
+                # 检查策略生成权限
+                user_perms = get_user_permissions(user_info)
+                if not user_perms.has_permission(UserPermissions.PERMISSION_STRATEGY_GENERATE):
+                    return {
+                        "status": "error",
+                        "error": "您没有策略生成权限。此功能仅限管理员使用。"
+                    }
+                
                 requirements = request.get("requirements", {})
+                description = requirements.get("description", "")
+                
+                if not description.strip():
+                    return {"status": "error", "error": "请提供策略需求描述"}
 
-                # 步骤1: 使用Module 10解析需求
-                from module_10_ai_interaction import ParameterMapper, RequirementParser
+                logger.info(f"开始生成策略: {description[:50]}...")
 
-                parser = RequirementParser()
-                parsed = parser.parse_requirement(requirements.get("description", ""))
+                # 使用阿里云AI服务生成策略
+                from module_10_ai_interaction.aliyun_ai_service import get_aliyun_ai_service
+                
+                ai_service = get_aliyun_ai_service()
+                
+                # 解析投资需求
+                parsed_requirement = await ai_service.parse_investment_requirement(description)
+                
+                # 生成策略方案
+                strategy_data = await ai_service.generate_strategy(
+                    requirement=description,
+                    market_data=None,
+                    market_analysis=None
+                )
 
-                # 步骤2: 映射到策略参数
-                mapper = ParameterMapper()
-                strategy_params = mapper.map_to_system_parameters(parsed.to_dict())
-
-                # 步骤3: 生成策略
+                # 构建策略对象
                 strategy = {
                     "id": f"strategy_{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                    "name": requirements.get("name", "自定义策略"),
-                    "type": requirements.get("strategy_type", "value"),
-                    "parameters": strategy_params.get("strategy_params", {}),
-                    "risk_level": parsed.risk_tolerance.value
-                    if parsed.risk_tolerance
-                    else "moderate",
+                    "name": strategy_data.get("strategy_name", requirements.get("name", "AI生成策略")),
+                    "description": strategy_data.get("strategy_description", description),
+                    "type": requirements.get("strategy_type", "ai_generated"),
+                    "recommended_stocks": strategy_data.get("recommended_stocks", []),
+                    "risk_management": strategy_data.get("risk_management", {}),
+                    "expected_performance": strategy_data.get("expected_performance", {}),
+                    "key_points": strategy_data.get("key_points", []),
+                    "parameters": parsed_requirement.get("strategy_params", {}),
+                    "risk_level": parsed_requirement.get("parsed_requirement", {}).get("risk_tolerance", "moderate"),
                     "created_at": datetime.now().isoformat(),
                 }
 
-                logger.info(f"生成策略: {strategy['name']}")
+                logger.info(f"策略生成成功: {strategy['name']}")
 
                 return {
                     "status": "success",
                     "data": {
                         "strategy": strategy,
-                        "parsed_requirements": parsed.to_dict(),
+                        "parsed_requirements": parsed_requirement.get("parsed_requirement", {}),
                     },
                 }
             except Exception as e:
                 logger.error(f"生成策略失败: {e}")
+                import traceback
+                traceback.print_exc()
                 return {"status": "error", "error": str(e)}
 
         @app.post("/api/v1/strategy/save")
@@ -1672,9 +2621,21 @@ class FinLoomEngine:
                 return {"status": "error", "error": str(e)}
 
         @app.get("/api/v1/strategy/list")
-        async def get_strategy_list(user_id: str = "default_user", limit: int = 50):
-            """获取用户的策略列表"""
+        async def get_strategy_list(limit: int = 50, authorization: str = Header(None)):
+            """获取用户的策略列表（需要用户认证）"""
             try:
+                # 🔒 验证用户身份
+                if not authorization or not authorization.startswith("Bearer "):
+                    return {"status": "error", "error": "未授权访问", "message": "请先登录"}
+                
+                token = authorization.replace("Bearer ", "")
+                valid, message, user_info = user_db.verify_token(token)
+                
+                if not valid:
+                    return {"status": "error", "error": "认证失败", "message": message}
+                
+                # ✅ 使用真实用户ID
+                user_id = str(user_info['user_id'])
                 from module_07_optimization import get_optimization_database_manager
 
                 db = get_optimization_database_manager()
@@ -2486,18 +3447,15 @@ class FinLoomEngine:
 
         @app.post("/api/v1/data/collect")
         async def collect_market_data(request: Dict):
-            """收集市场数据"""
+            """收集市场数据（使用本地缓存）"""
             try:
                 symbol = request.get("symbol", "000001")
                 period = request.get("period", "1y")
                 data_type = request.get("data_type", "daily")
 
-                # 导入数据收集器
+                # 导入缓存管理器
                 from datetime import datetime, timedelta
-
-                from module_01_data_pipeline.data_acquisition.akshare_collector import (
-                    AkshareDataCollector,
-                )
+                from module_01_data_pipeline.storage_management.cached_data_manager import get_cached_data_manager
 
                 # 计算日期范围
                 end_date = datetime.now()
@@ -2513,17 +3471,17 @@ class FinLoomEngine:
                     start_date = end_date - timedelta(days=365)
 
                 # 格式化日期
-                start_date_str = start_date.strftime("%Y%m%d")
-                end_date_str = end_date.strftime("%Y%m%d")
+                start_date_str = start_date.strftime("%Y-%m-%d")
+                end_date_str = end_date.strftime("%Y-%m-%d")
 
-                # 创建数据收集器并获取数据
-                collector = AkshareDataCollector()
+                # 使用缓存管理器获取数据（优先本地）
+                cache_manager = get_cached_data_manager()
                 try:
-                    df = collector.fetch_stock_history(
+                    df = cache_manager.get_stock_history(
                         symbol=symbol,
                         start_date=start_date_str,
                         end_date=end_date_str,
-                        period=data_type,
+                        force_update=False
                     )
 
                     records_count = len(df)
@@ -2547,9 +3505,10 @@ class FinLoomEngine:
                             "accuracy": accuracy,
                             "consistency": consistency,
                         },
+                        "from_cache": True
                     }
 
-                    logger.info(f"Collected {records_count} records for {symbol}")
+                    logger.info(f"Collected {records_count} records for {symbol} (from cache)")
                     return {
                         "data": result,
                         "message": "Data collection completed successfully",

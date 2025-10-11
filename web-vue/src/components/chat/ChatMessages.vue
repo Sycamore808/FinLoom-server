@@ -3,15 +3,15 @@
     <!-- 空状态 -->
     <div v-if="messages.length === 0" class="empty-state">
       <div class="welcome-section">
-        <v-avatar color="primary" variant="tonal" size="96" class="mb-6">
-          <v-icon size="48">mdi-chat-outline</v-icon>
+        <v-avatar color="primary" variant="tonal" size="64" class="mb-3">
+          <v-icon size="32">mdi-chat-outline</v-icon>
         </v-avatar>
-        <h2 class="text-h4 font-weight-bold mb-3">欢迎使用 FIN-R1 AI助手</h2>
-        <p class="text-h6 text-medium-emphasis mb-8">向AI助手描述您的投资需求，获取个性化建议</p>
+        <h2 class="text-h5 font-weight-bold mb-2">欢迎使用 FIN-R1 AI助手</h2>
+        <p class="text-body-1 text-medium-emphasis mb-4">向AI助手描述您的投资需求，获取个性化建议</p>
         
         <!-- 快速开始卡片 -->
         <div class="quick-start-section">
-          <h3 class="text-h6 font-weight-medium mb-4 text-center">快速开始</h3>
+          <h3 class="text-subtitle-1 font-weight-medium mb-3 text-center">快速开始</h3>
           <v-row class="justify-center">
             <v-col 
               v-for="q in quickQuestions" 
@@ -23,16 +23,16 @@
             >
               <v-card 
                 variant="elevated" 
-                class="quick-card pa-6 cursor-pointer w-100"
-                rounded="xl"
+                class="quick-card pa-4 cursor-pointer w-100"
+                rounded="lg"
                 elevation="2"
                 @click="$emit('ask-question', q.text)"
               >
                 <div class="text-center">
-                  <v-avatar :color="q.color" variant="tonal" size="56" class="mb-4">
-                    <v-icon :icon="q.icon" size="28"></v-icon>
+                  <v-avatar :color="q.color" variant="tonal" size="48" class="mb-3">
+                    <v-icon :icon="q.icon" size="24"></v-icon>
                   </v-avatar>
-                  <div class="text-body-1 font-weight-medium mb-2">{{ q.text }}</div>
+                  <div class="text-body-2 font-weight-medium mb-1">{{ q.text }}</div>
                   <div class="text-caption text-medium-emphasis">{{ q.description }}</div>
                 </div>
               </v-card>

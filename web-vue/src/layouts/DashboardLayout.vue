@@ -11,16 +11,36 @@
         </RouterView>
       </div>
     </div>
+    
+    <!-- 用户留言按钮 -->
+    <UserMessageButton />
   </div>
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import { useAppStore } from '@/stores/app'
+import { useUserStore } from '@/stores/user'
 import Sidebar from '@/components/layout/Sidebar.vue'
 import TopNavbar from '@/components/layout/TopNavbar.vue'
+import UserMessageButton from '@/components/UserMessageButton.vue'
 
 const appStore = useAppStore()
+const userStore = useUserStore()
+
+// 页面加载时获取用户信息
+onMounted(async () => {
+  // 如果userStore中没有用户信息，尝试加载
+  if (!userStore.userInfo) {
+    try {
+      await userStore.fetchUserInfo()
+      console.log('✅ Dashboard: 用户信息已加载')
+    } catch (error) {
+      console.warn('⚠️ Dashboard: 加载用户信息失败', error)
+    }
+  }
+})
 </script>
 
 <style lang="scss" scoped>

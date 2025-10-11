@@ -27,7 +27,7 @@ const router = createRouter({
       component: () => import('@/layouts/DashboardLayout.vue'),
       meta: { 
         title: 'FinLoom - 仪表盘',
-        requiresAuth: true 
+        requiresAuth: true
       },
       children: [
         {
@@ -71,6 +71,15 @@ const router = createRouter({
           name: 'dashboard-chat',
           component: () => import('@/views/dashboard/ChatView.vue'),
           meta: { title: 'AI对话' }
+        },
+        {
+          path: 'admin',
+          name: 'dashboard-admin',
+          component: () => import('@/views/AdminView.vue'),
+          meta: { 
+            title: '管理员中心',
+            requiresAdmin: true  // 需要管理员权限
+          }
         },
         {
           path: 'chat/new',
@@ -150,14 +159,68 @@ const router = createRouter({
 })
 
 // 路由守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   // 更新页面标题
   document.title = to.meta.title || 'FinLoom'
   
-  // 认证检查（简化版）
-  if (to.meta.requiresAuth) {
-    const isAuthenticated = localStorage.getItem('finloom_auth') === 'true'
-    if (!isAuthenticated) {
+  console.log('🔀 路由导航:', from.path, '→', to.path)
+  
+  // 🔒 修改：不再自动登录，即使有token也显示登录界面
+  // 用户需要手动点击登录按钮才能进入系统
+  // if (to.name === 'login' || to.path === '/login') {
+  //   const token = localStorage.getItem('finloom_token')
+  //   if (token) {
+  //     console.log('✅ 已登录，重定向到dashboard')
+  //     next({ name: 'dashboard', replace: true })
+  //     return
+  //   }
+  // }
+  
+  // 认证检查
+  if (to.meta.requiresAuth || to.path.startsWith('/dashboard')) {
+    const token = localStorage.getItem('finloom_token')
+    
+    // 检查token是否存在
+    if (!token) {
+      console.log('❌ 未登录，跳转到登录页')
+      next({ name: 'login', query: { redirect: to.fullPath } })
+      return
+    }
+    
+    // 验证token有效性
+    try {
+      const { api } = await import('@/services')
+      const response = await api.auth.verify()
+      
+      // 注意：响应拦截器已经提取了data
+      if (!response.valid) {
+        console.log('❌ Token无效，清除并跳转到登录页')
+        localStorage.removeItem('finloom_auth')
+        localStorage.removeItem('finloom_token')
+        localStorage.removeItem('finloom_user')
+        next({ name: 'login', query: { redirect: to.fullPath } })
+        return
+      }
+      
+      console.log('✅ Token有效，允许访问')
+      
+      // 检查管理员权限
+      if (to.meta.requiresAdmin) {
+        const profileResponse = await api.auth.getProfile()
+        const permissionLevel = profileResponse.data?.permission_level || 1
+        
+        if (permissionLevel < 2) {
+          console.log('❌ 需要管理员权限')
+          next({ name: 'dashboard', replace: true })
+          return
+        }
+        console.log('✅ 管理员权限验证通过')
+      }
+    } catch (error) {
+      console.error('Token验证失败:', error)
+      localStorage.removeItem('finloom_auth')
+      localStorage.removeItem('finloom_token')
+      localStorage.removeItem('finloom_user')
       next({ name: 'login', query: { redirect: to.fullPath } })
       return
     }

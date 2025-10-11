@@ -3,6 +3,10 @@ AI交互模块初始化文件
 提供自然语言理解、对话管理、需求解析、策略推荐等功能
 """
 
+# AI服务（主备容错机制）
+from .hybrid_ai_service import HybridAIService
+from .aliyun_ai_service import AliyunAIService
+
 # FIN-R1集成
 # 对话历史
 from .conversation_history import (
@@ -75,6 +79,9 @@ from .response_generator import (
 )
 
 __all__ = [
+    # AI服务（主备容错）
+    "HybridAIService",
+    "AliyunAIService",
     # FIN-R1
     "FINR1Integration",
     "process_investment_request",

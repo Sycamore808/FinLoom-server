@@ -325,9 +325,9 @@ class FINR1Integration:
                 # 🔑 立即开始消费 streamer，避免死锁
                 logger.info("🚀 Starting streaming generation...")
 
-                # 🎯 使用可视化器显示流式生成进度
+                # 🎯 使用可视化器显示流式生成进度（传入30秒超时）
                 generated_text = self.visualizer.visualize_generation(
-                    streamer, max_new_tokens=max_new_tokens, model_name="FIN-R1"
+                    streamer, max_new_tokens=max_new_tokens, model_name="FIN-R1", timeout=30
                 )
 
                 # 等待生成线程完成
@@ -337,6 +337,11 @@ class FINR1Integration:
                     logger.warning("⚠️ Generation thread timeout, may be incomplete")
                     raise TimeoutError("Model generation timeout")
 
+            except TimeoutError as timeout_err:
+                # 🔑 超时错误（0 token）- 直接抛出让上层切换到阿里云
+                logger.error(f"❌ FIN-R1 timeout with 0 tokens: {timeout_err}")
+                raise ModelError(f"FIN-R1 timeout with no tokens generated: {timeout_err}")
+            
             except Exception as stream_error:
                 # Fallback: 非流式生成（带简单进度）
                 logger.warning(

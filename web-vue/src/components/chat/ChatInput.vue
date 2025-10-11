@@ -17,7 +17,7 @@
             auto-grow
             hide-details
             density="comfortable"
-            class="input-textarea"
+            class="input-textarea centered-placeholder"
             @keydown.enter.exact.prevent="$emit('send')"
             @keydown.enter.shift.exact="$emit('update:modelValue', modelValue + '\n')"
           ></v-textarea>
@@ -61,3 +61,15 @@ defineProps({
 defineEmits(['update:modelValue', 'send'])
 </script>
 
+<style scoped>
+.centered-placeholder :deep(.v-field__input) {
+  display: flex;
+  align-items: center;
+  text-align: left;
+}
+
+.centered-placeholder :deep(textarea) {
+  line-height: 1.5 !important;
+  padding: 16px 16px;
+}
+</style>
