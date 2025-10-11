@@ -157,14 +157,14 @@
           </div>
           
           <!-- 用户头像 -->
-          <button class="action-btn avatar-btn" title="个人资料">
+          <button class="action-btn avatar-btn" title="个人资料" @click="goToProfile">
             <div class="avatar-icon">
               <i class="fas fa-user"></i>
             </div>
             <Transition name="fade-slide">
               <div v-if="isExpanded" class="avatar-info">
-                <span class="action-label">FinLoom 用户</span>
-                <span class="action-sublabel">user@finloom.com</span>
+                <span class="action-label">{{ userStore.displayName }}</span>
+                <span class="action-sublabel">{{ userStore.email }}</span>
               </div>
             </Transition>
       </button>
@@ -175,16 +175,20 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
+import { useUserStore } from '@/stores/user'
+import { api } from '@/services'
 
 const appStore = useAppStore()
+const userStore = useUserStore()
+const route = useRoute()
+const router = useRouter()
 const isExpanded = ref(false)
 const isPinned = ref(false)
 const isDarkMode = ref(false)
 const expandedMenus = reactive({})
-const route = useRoute()
 const currentPath = computed(() => route.path)
 
 // 初始化时设置侧边栏状态为折叠
@@ -221,10 +225,34 @@ const mainMenuItems = [
 ]
 
 // 系统功能组
-const systemMenuItems = [
+const systemMenuItems = ref([
   { path: '/dashboard/notifications', icon: 'fas fa-bell', label: '通知中心' },
   { path: '/dashboard/settings', icon: 'fas fa-cog', label: '系统设置' }
-]
+])
+
+// 管理员菜单项
+const adminMenuItem = { 
+  path: '/dashboard/admin', 
+  icon: 'fas fa-shield-alt', 
+  label: '管理员中心',
+  badge: true  // 显示徽章
+}
+
+// 检查是否为管理员并添加管理员菜单
+onMounted(async () => {
+  try {
+    // 获取用户信息
+    await userStore.fetchUserInfo()
+    
+    // 如果是管理员（权限>=2），添加管理员菜单
+    if (userStore.isAdmin) {
+      // 在系统设置之前插入管理员菜单
+      systemMenuItems.value.splice(1, 0, adminMenuItem)
+    }
+  } catch (error) {
+    console.error('检查管理员权限失败:', error)
+  }
+})
 
 const handleMouseEnter = () => {
   if (!isPinned.value) {
@@ -273,6 +301,11 @@ watch(
   },
   { immediate: true }
 )
+
+// 跳转到个人信息页面
+const goToProfile = () => {
+  router.push({ path: '/dashboard/settings', query: { tab: 'profile' } })
+}
 </script>
 
 <style lang="scss" scoped>

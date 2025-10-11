@@ -31,6 +31,7 @@ apiClient.interceptors.request.use(
 // 响应拦截器
 apiClient.interceptors.response.use(
   response => {
+    // 直接返回后端的数据（已经是 response.data）
     return response.data
   },
   error => {
@@ -44,13 +45,15 @@ apiClient.interceptors.response.use(
         // 未授权，跳转登录
         localStorage.removeItem('finloom_auth')
         localStorage.removeItem('finloom_token')
+        localStorage.removeItem('finloom_user')
         window.location.href = '/login'
       }
       
-      return Promise.reject(data || error.message)
+      // 返回后端的错误信息
+      return Promise.reject(data || { message: error.message })
     } else if (error.request) {
       // 请求已发送但没有收到响应
-      return Promise.reject({ message: '网络错误，请检查连接' })
+      return Promise.reject({ message: '网络错误，请检查服务器连接' })
     } else {
       // 请求配置出错
       return Promise.reject({ message: error.message })

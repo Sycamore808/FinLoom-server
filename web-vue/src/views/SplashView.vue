@@ -237,7 +237,13 @@ function generateDataStreams() {
 }
 
 function goToHome() {
+  // 跳转到首页（介绍页）
   router.push('/home')
+}
+
+function goToLogin() {
+  // 直接跳转到登录页
+  router.push('/login')
 }
 
 const setup = () => {

@@ -49,22 +49,35 @@
           <!-- 个人信息 - Material 3 风格 -->
           <v-window-item value="profile">
             <v-card variant="elevated">
-              <v-card-title class="text-h5 font-weight-bold d-flex align-center pa-6">
-                <v-avatar color="primary" variant="tonal" size="48" class="mr-4">
-                  <v-icon size="32">mdi-account</v-icon>
-                </v-avatar>
-                <div>
-                  <div>个人信息</div>
-                  <div class="text-caption text-medium-emphasis font-weight-regular">管理您的账户信息</div>
+              <v-card-title class="text-h5 font-weight-bold d-flex align-center justify-space-between pa-6">
+                <div class="d-flex align-center">
+                  <v-avatar color="primary" variant="tonal" size="48" class="mr-4">
+                    <v-icon size="32">mdi-account</v-icon>
+                  </v-avatar>
+                  <div>
+                    <div>个人信息</div>
+                    <div class="text-caption text-medium-emphasis font-weight-regular">
+                      管理您的账户信息
+                      <span class="text-warning ml-2" style="font-size: 0.7rem;">每月仅能修改一次</span>
+                    </div>
+                  </div>
+                </div>
+                <!-- 显示上次修改时间 -->
+                <div v-if="profileLastModified" class="text-caption text-medium-emphasis">
+                  上次修改: {{ profileLastModified }}
                 </div>
               </v-card-title>
               <v-card-text class="pa-6">
-                <v-form>
+                <v-form ref="profileForm">
                   <v-text-field
                     v-model="profile.username"
                     label="用户名"
                     prepend-inner-icon="mdi-account-circle"
+                    variant="outlined"
+                    density="comfortable"
                     class="mb-4"
+                    :readonly="!isEditingProfile"
+                    :disabled="!isEditingProfile"
                   ></v-text-field>
 
                   <v-text-field
@@ -72,7 +85,11 @@
                     label="邮箱"
                     type="email"
                     prepend-inner-icon="mdi-email"
+                    variant="outlined"
+                    density="comfortable"
                     class="mb-4"
+                    :readonly="!isEditingProfile"
+                    :disabled="!isEditingProfile"
                   ></v-text-field>
 
                   <v-text-field
@@ -80,27 +97,83 @@
                     label="电话"
                     type="tel"
                     prepend-inner-icon="mdi-phone"
+                    variant="outlined"
+                    density="comfortable"
                     class="mb-4"
+                    :readonly="!isEditingProfile"
+                    :disabled="!isEditingProfile"
                   ></v-text-field>
+
+                  <!-- 密码显示 -->
+                  <v-text-field
+                    v-model="profile.password"
+                    label="当前密码"
+                    prepend-inner-icon="mdi-lock"
+                    type="password"
+                    variant="outlined"
+                    density="comfortable"
+                    class="mb-4"
+                    readonly
+                    hint="密码已加密保护，不可查看"
+                    persistent-hint
+                  ></v-text-field>
+
+                  <!-- 修改信息时的密码验证 -->
+                  <v-expand-transition>
+                    <div v-if="isEditingProfile" class="mt-4 pa-4" style="background: rgba(var(--v-theme-primary), 0.05); border-radius: 8px;">
+                      <div class="text-subtitle-2 font-weight-bold mb-3">
+                        <v-icon size="small" class="mr-2">mdi-shield-lock</v-icon>
+                        安全验证
+                      </div>
+                      <v-text-field
+                        v-model="verifyPassword"
+                        label="请输入当前密码以验证身份"
+                        prepend-inner-icon="mdi-lock-check"
+                        type="password"
+                        variant="outlined"
+                        density="comfortable"
+                        :rules="[v => !!v || '请输入密码以验证身份']"
+                        required
+                      ></v-text-field>
+                    </div>
+                  </v-expand-transition>
                 </v-form>
               </v-card-text>
               <v-card-actions class="px-6 pb-6">
                 <v-btn
+                  v-if="!isEditingProfile"
                   color="primary"
                   size="large"
                   variant="elevated"
-                  prepend-icon="mdi-content-save"
-                  @click="saveProfile"
+                  prepend-icon="mdi-pencil"
+                  @click="startEditProfile"
+                  :disabled="!canModifyProfile"
                 >
-                  保存更改
+                  修改信息
                 </v-btn>
-                <v-btn
-                  size="large"
-                  variant="text"
-                  @click="resetProfile"
-                >
-                  重置
-                </v-btn>
+                <template v-else>
+                  <v-btn
+                    color="primary"
+                    size="large"
+                    variant="elevated"
+                    prepend-icon="mdi-content-save"
+                    @click="confirmSaveProfile"
+                    :loading="savingProfile"
+                  >
+                    保存更改
+                  </v-btn>
+                  <v-btn
+                    size="large"
+                    variant="text"
+                    @click="cancelEditProfile"
+                  >
+                    取消
+                  </v-btn>
+                </template>
+                <v-spacer></v-spacer>
+                <div v-if="!canModifyProfile" class="text-caption text-error">
+                  本月已修改，下月才能再次修改
+                </div>
               </v-card-actions>
             </v-card>
           </v-window-item>
@@ -268,9 +341,19 @@
           <!-- 安全设置 -->
           <v-window-item value="security">
             <v-card elevation="2" rounded="lg">
-              <v-card-title class="text-h5 font-weight-bold">
-                <v-icon start>mdi-shield-lock</v-icon>
-                安全设置
+              <v-card-title class="text-h5 font-weight-bold d-flex justify-space-between align-center">
+                <div>
+                  <v-icon start>mdi-shield-lock</v-icon>
+                  安全设置
+                </div>
+                <v-btn
+                  color="error"
+                  variant="outlined"
+                  prepend-icon="mdi-logout"
+                  @click="handleLogout"
+                >
+                  退出登录
+                </v-btn>
               </v-card-title>
               <v-divider></v-divider>
               <v-card-text>
@@ -429,7 +512,7 @@
               <v-card-text class="pa-6">
                 <v-form>
                   <v-text-field
-                    v-model="api.apiKey"
+                    v-model="apiSettings.apiKey"
                     label="API密钥"
                     prepend-inner-icon="mdi-key"
                     variant="outlined"
@@ -442,7 +525,7 @@
                   ></v-text-field>
 
                   <v-text-field
-                    v-model="api.secretKey"
+                    v-model="apiSettings.secretKey"
                     label="密钥"
                     prepend-inner-icon="mdi-key-variant"
                     variant="outlined"
@@ -455,7 +538,7 @@
                   ></v-text-field>
 
                   <v-select
-                    v-model="api.environment"
+                    v-model="apiSettings.environment"
                     :items="apiEnvironments"
                     label="环境"
                     prepend-inner-icon="mdi-server"
@@ -465,7 +548,7 @@
                   ></v-select>
 
                   <v-switch
-                    v-model="api.enabled"
+                    v-model="apiSettings.enabled"
                     label="启用API交易"
                     color="primary"
                     inset
@@ -474,7 +557,7 @@
                   ></v-switch>
 
                   <v-switch
-                    v-model="api.autoRefresh"
+                    v-model="apiSettings.autoRefresh"
                     label="自动刷新令牌"
                     color="primary"
                     inset
@@ -605,6 +688,51 @@
       </v-col>
     </v-row>
 
+    <!-- 确认修改对话框 -->
+    <v-dialog v-model="confirmDialog" max-width="500">
+      <v-card>
+        <v-card-title class="text-h5 pa-6 d-flex align-center">
+          <v-icon color="warning" size="32" class="mr-3">mdi-alert-circle</v-icon>
+          <span>确认修改信息</span>
+        </v-card-title>
+        <v-card-text class="pa-6">
+          <div class="text-body-1 mb-4">
+            请仔细确认您的信息修改无误？
+          </div>
+          <v-alert 
+            type="warning" 
+            variant="tonal" 
+            density="compact"
+            class="mb-0"
+          >
+            <div class="text-body-2 font-weight-bold">
+              重要提示：每月仅能更改一次个人信息
+            </div>
+            <div class="text-caption mt-1">
+              修改后，本月内将无法再次修改
+            </div>
+          </v-alert>
+        </v-card-text>
+        <v-card-actions class="px-6 pb-6">
+          <v-spacer></v-spacer>
+          <v-btn
+            variant="text"
+            @click="confirmDialog = false"
+          >
+            取消
+          </v-btn>
+          <v-btn
+            color="primary"
+            variant="elevated"
+            @click="executeSaveProfile"
+            :loading="savingProfile"
+          >
+            确认修改
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Snackbar 提示 -->
     <v-snackbar
       v-model="snackbar.show"
@@ -621,29 +749,187 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useTheme } from 'vuetify'
+import { useUserStore } from '@/stores/user'
+import { useRoute } from 'vue-router'
+import { api } from '@/services'
 
 const theme = useTheme()
+const userStore = useUserStore()
+const route = useRoute()
 const activeTab = ref('profile')
 
-// 设置标签页
-const settingsTabs = [
-  { id: 'profile', label: '个人信息', icon: 'mdi-account' },
-  { id: 'trading', label: '交易设置', icon: 'mdi-chart-line' },
-  { id: 'notifications', label: '通知设置', icon: 'mdi-bell' },
-  { id: 'security', label: '安全设置', icon: 'mdi-shield-lock' },
-  { id: 'preferences', label: '系统偏好', icon: 'mdi-cog' },
-  { id: 'api', label: 'API设置', icon: 'mdi-api' },
-  { id: 'backup', label: '数据备份', icon: 'mdi-backup-restore' }
-]
+// 监听URL query参数切换标签
+watch(() => route.query.tab, (newTab) => {
+  if (newTab) {
+    activeTab.value = newTab
+  }
+}, { immediate: true })
 
-// 个人信息
-const profile = ref({
-  username: 'FinLoom用户',
-  email: 'user@finloom.com',
-  phone: '+86 138 0000 0000'
+// 设置标签页 - 根据用户权限动态生成
+const settingsTabs = computed(() => {
+  const tabs = [
+    { id: 'profile', label: '个人信息', icon: 'mdi-account' },
+    { id: 'trading', label: '交易设置', icon: 'mdi-chart-line' },
+    { id: 'notifications', label: '通知设置', icon: 'mdi-bell' },
+    { id: 'security', label: '安全设置', icon: 'mdi-shield-lock' },
+    { id: 'preferences', label: '系统偏好', icon: 'mdi-cog' }
+  ]
+  
+  // 仅管理员可见API设置
+  if (userStore.isAdmin) {
+    tabs.push({ id: 'api', label: 'API设置', icon: 'mdi-api' })
+  }
+  
+  tabs.push({ id: 'backup', label: '数据备份', icon: 'mdi-backup-restore' })
+  
+  return tabs
 })
+
+// 个人信息状态
+const profile = ref({
+  username: '',
+  email: '',
+  phone: '',
+  password: '********'  // 默认显示为星号
+})
+
+const profileForm = ref(null)
+const isEditingProfile = ref(false)
+const verifyPassword = ref('')
+const savingProfile = ref(false)
+const confirmDialog = ref(false)
+const profileLastModified = ref('')
+const canModifyProfile = ref(true)
+const originalProfileData = ref({})
+const actualPassword = ref('')  // 存储真实密码（仅用于后台验证，不显示给用户）
+
+// 加载用户信息
+onMounted(async () => {
+  try {
+    // 确保用户信息已加载
+    if (!userStore.userInfo) {
+      await userStore.fetchUserInfo()
+    }
+    
+    // 获取用户完整信息（包括密码和最后修改时间）
+    const response = await api.user.getUserProfile()
+    
+    actualPassword.value = response.data.password || ''
+    profile.value = {
+      username: userStore.displayName,
+      email: userStore.email,
+      phone: userStore.phone || '+86 138 0000 0000',
+      password: '********'
+    }
+    
+    // 保存原始数据
+    originalProfileData.value = { ...profile.value }
+    
+    // 处理最后修改时间
+    if (response.data.last_modified) {
+      profileLastModified.value = formatDateTime(response.data.last_modified)
+      // 检查是否在本月内修改过
+      canModifyProfile.value = !isModifiedThisMonth(response.data.last_modified)
+    }
+  } catch (error) {
+    console.error('加载用户信息失败:', error)
+    showMessage('加载用户信息失败', 'error')
+  }
+})
+
+// 格式化日期时间
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleString('zh-CN', { 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+// 检查是否在本月修改过
+const isModifiedThisMonth = (lastModified) => {
+  if (!lastModified) return false
+  const lastDate = new Date(lastModified)
+  const now = new Date()
+  return lastDate.getFullYear() === now.getFullYear() && 
+         lastDate.getMonth() === now.getMonth()
+}
+
+// 开始编辑个人信息
+const startEditProfile = () => {
+  if (!canModifyProfile.value) {
+    showMessage('本月已修改过，下月才能再次修改', 'warning')
+    return
+  }
+  isEditingProfile.value = true
+  verifyPassword.value = ''
+}
+
+// 取消编辑
+const cancelEditProfile = () => {
+  isEditingProfile.value = false
+  profile.value = { ...originalProfileData.value }
+  verifyPassword.value = ''
+}
+
+// 确认保存（显示对话框）
+const confirmSaveProfile = () => {
+  // 验证表单
+  if (!verifyPassword.value) {
+    showMessage('请输入密码以验证身份', 'error')
+    return
+  }
+  
+  confirmDialog.value = true
+}
+
+// 执行保存
+const executeSaveProfile = async () => {
+  savingProfile.value = true
+  
+  try {
+    // 验证密码
+    if (verifyPassword.value !== actualPassword.value) {
+      showMessage('密码验证失败，请检查密码是否正确', 'error')
+      savingProfile.value = false
+      return
+    }
+    
+    // 调用API更新用户信息
+    const response = await api.user.updateProfile({
+      username: profile.value.username,
+      email: profile.value.email,
+      phone: profile.value.phone,
+      verify_password: verifyPassword.value
+    })
+    
+    if (response.status === 'success') {
+      // 更新本地数据
+      originalProfileData.value = { ...profile.value }
+      profileLastModified.value = formatDateTime(new Date())
+      canModifyProfile.value = false
+      
+      // 更新userStore
+      await userStore.fetchUserInfo()
+      
+      showMessage('个人信息已成功更新')
+      isEditingProfile.value = false
+      confirmDialog.value = false
+      verifyPassword.value = ''
+    }
+  } catch (error) {
+    console.error('保存个人信息失败:', error)
+    showMessage('保存失败: ' + (error.response?.data?.error || error.message), 'error')
+  } finally {
+    savingProfile.value = false
+  }
+}
 
 // 交易设置
 const trading = ref({
@@ -714,7 +1000,7 @@ const chartStyles = [
 ]
 
 // API设置
-const api = ref({
+const apiSettings = ref({
   apiKey: 'ak_1234567890abcdef',
   secretKey: 'sk_abcdef1234567890',
   environment: 'production',
@@ -767,11 +1053,7 @@ const showMessage = (message, color = 'success') => {
   snackbar.show = true
 }
 
-// 保存方法
-const saveProfile = () => {
-  showMessage('个人信息已保存')
-}
-
+// 其他设置保存方法
 const saveTrading = () => {
   showMessage('交易设置已保存')
 }
@@ -780,26 +1062,36 @@ const saveNotifications = () => {
   showMessage('通知设置已保存')
 }
 
-const updatePassword = () => {
+const updatePassword = async () => {
   if (security.value.newPassword !== security.value.confirmPassword) {
     showMessage('两次输入的密码不匹配', 'error')
     return
   }
-  showMessage('密码已更新')
-  security.value = {
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-    twoFactorAuth: security.value.twoFactorAuth
+  
+  try {
+    // 调用API修改密码
+    await api.auth.changePassword({
+      old_password: security.value.currentPassword,
+      new_password: security.value.newPassword
+    })
+    
+    showMessage('密码已更新')
+    // 更新实际密码
+    actualPassword.value = security.value.newPassword
+    security.value = {
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: '',
+      twoFactorAuth: security.value.twoFactorAuth
+    }
+  } catch (error) {
+    console.error('修改密码失败:', error)
+    showMessage('修改密码失败: ' + (error.response?.data?.error || error.message), 'error')
   }
 }
 
 const savePreferences = () => {
   showMessage('系统偏好已保存')
-}
-
-const resetProfile = () => {
-  showMessage('已重置为默认值', 'info')
 }
 
 // 切换主题
@@ -822,8 +1114,8 @@ const saveApi = () => {
 
 const regenerateApiKey = () => {
   // 生成新的API密钥
-  api.value.apiKey = 'ak_' + Math.random().toString(36).substr(2, 16)
-  api.value.secretKey = 'sk_' + Math.random().toString(36).substr(2, 16)
+  apiSettings.value.apiKey = 'ak_' + Math.random().toString(36).substr(2, 16)
+  apiSettings.value.secretKey = 'sk_' + Math.random().toString(36).substr(2, 16)
   showMessage('API密钥已重新生成', 'warning')
 }
 
@@ -848,6 +1140,27 @@ const deleteBackup = (backup) => {
   if (index > -1) {
     backupHistory.value.splice(index, 1)
     showMessage('备份已删除', 'warning')
+  }
+}
+
+// 退出登录
+const handleLogout = async () => {
+  try {
+    // 调用登出API
+    await api.auth.logout()
+  } catch (error) {
+    console.error('登出API调用失败:', error)
+  } finally {
+    // 无论API是否成功，都清除本地数据
+    localStorage.removeItem('finloom_auth')
+    localStorage.removeItem('finloom_token')
+    localStorage.removeItem('finloom_user')
+    
+    // 清除用户store
+    userStore.clearUserInfo()
+    
+    // 跳转到登录页
+    window.location.href = '/login'
   }
 }
 </script>

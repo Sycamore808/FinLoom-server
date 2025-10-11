@@ -12,7 +12,7 @@
           autoplay
           muted
           style="width: 100%; height: 100%; border-radius: 12px;">
-          <source src="/FinLoom网页端展示.mp4" type="video/mp4">
+          <source src="/video.mp4" type="video/mp4">
           您的浏览器不支持视频播放。
         </video>
       </div>
@@ -30,7 +30,7 @@
           <a href="#features" class="nav-link">功能</a>
           <a href="#modules" class="nav-link">模块</a>
           <a href="#company" class="nav-link">关于我们</a>
-          <RouterLink to="/dashboard" class="nav-btn">
+          <button @click="goToDashboard" class="nav-btn">
             进入平台
             <svg
               class="nav-btn-arrow"
@@ -41,7 +41,7 @@
                 d="M7 18C7 18.5523 7.44772 19 8 19C8.55228 19 9 18.5523 9 18H7ZM8.70711 0.292893C8.31658 -0.0976311 7.68342 -0.0976311 7.29289 0.292893L0.928932 6.65685C0.538408 7.04738 0.538408 7.68054 0.928932 8.07107C1.31946 8.46159 1.95262 8.46159 2.34315 8.07107L8 2.41421L13.6569 8.07107C14.0474 8.46159 14.6805 8.46159 15.0711 8.07107C15.4616 7.68054 15.4616 7.04738 15.0711 6.65685L8.70711 0.292893ZM9 18L9 1H7L7 18H9Z"
               ></path>
             </svg>
-          </RouterLink>
+          </button>
         </div>
       </div>
     </nav>
@@ -121,7 +121,7 @@
                 muted
                 playsinline
                 style="width: 100%; height: 100%; object-fit: contain; border-radius: 12px;">
-                <source src="/FinLoom网页端展示.mp4" type="video/mp4">
+                <source src="/video.mp4" type="video/mp4">
                 您的浏览器不支持视频播放。
               </video>
             </div>
@@ -481,7 +481,9 @@ const modules = [
 ]
 
 function goToDashboard() {
-  router.push('/dashboard')
+  // 🔒 修改：不再自动登录，始终跳转到登录页
+  // 让用户手动选择是否登录
+  router.push('/login')
 }
 
 function scrollToFeatures() {
