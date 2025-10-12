@@ -69,10 +69,9 @@ export const CONVERSATION_COLORS = {
   'analysis': 'info'
 }
 
-// AI模型选项
+// AI模型选项（只保留阿里云）
 export const AI_MODELS = [
-  { title: 'FIN-R1', value: 'fin-r1' },
-  { title: 'FIN-R1 Pro', value: 'fin-r1-pro' }
+  { title: '阿里云 Qwen', value: 'qwen-plus' }
 ]
 
 // 风险偏好选项
@@ -82,9 +81,9 @@ export const RISK_TOLERANCE_OPTIONS = [
   { title: '激进', value: 'high' }
 ]
 
-// 默认AI设置
+// 默认AI设置（使用阿里云作为默认）
 export const DEFAULT_AI_SETTINGS = {
-  model: 'fin-r1',
+  model: 'qwen-plus',
   temperature: 0.7,
   riskTolerance: 'medium'
 }

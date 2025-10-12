@@ -7,7 +7,7 @@ import axios from 'axios'
 // 创建axios实例
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
-  timeout: 30000,
+  timeout: 90000, // 增加到60秒，适应AI服务的响应时间
   headers: {
     'Content-Type': 'application/json'
   }

@@ -12,10 +12,10 @@ export const useChatStore = defineStore('chat', () => {
   const error = ref(null)
   const conversations = ref([]) // 历史会话列表
   const favorites = ref([])      // 收藏列表
-  const settings = ref({        // AI 设置
-    model: 'fin-r1',
+  const settings = ref({        // AI 设置（默认使用阿里云）
+    model: 'qwen-plus',
     temperature: 0.7,
-    riskTolerance: 'balanced'
+    riskTolerance: 'medium'
   })
   const initialized = ref(false)
   
@@ -78,13 +78,8 @@ export const useChatStore = defineStore('chat', () => {
         attachments: Array.isArray(attachments) ? attachments : null
       })
       
-      // ✅ 调用AI对话API，传递会话ID
-      const response = await api.chat.aiChat(
-        text, 
-        amount, 
-        riskTolerance, 
-        conversationId.value  // 传递当前会话ID
-      )
+      // ✅ 默认使用阿里云AI服务（简单、快速、稳定）
+      const response = await api.chat.send(text, conversationId.value)
       
       if (response.status === 'success') {
         // ✅ 如果后端返回了新的会话ID，更新本地
@@ -92,14 +87,14 @@ export const useChatStore = defineStore('chat', () => {
           conversationId.value = response.conversation_id
         }
         
-        // 添加AI回复
+        // 添加AI回复（阿里云返回的字段是 response）
         addMessage({
           role: 'assistant',
-          content: response.data,
+          content: response.response,
           raw: response
         })
       } else {
-        throw new Error(response.message || '分析失败')
+        throw new Error(response.response || '分析失败')
       }
       
       return response

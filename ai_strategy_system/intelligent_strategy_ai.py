@@ -52,10 +52,11 @@ from module_04_market_analysis.regime_detection.market_regime_detector import (
     MarketRegimeDetector,
     RegimeDetectionConfig,
 )
-from module_04_market_analysis.sentiment_analysis.fin_r1_sentiment import (
-    TradingAgentsSentimentAnalyzer,
-)
 
+# FIN-R1 sentiment analysis removed - using alternative sentiment analysis
+# from module_04_market_analysis.sentiment_analysis.fin_r1_sentiment import (
+#     TradingAgentsSentimentAnalyzer,
+# )
 # Module 05: 风险管理
 from module_05_risk_management.portfolio_optimization.mean_variance_optimizer import (
     MeanVarianceOptimizer,
@@ -197,13 +198,14 @@ class IntelligentStrategyAI:
 
             # 2.2 情感分析
             logger.info("\n[2.2] 分析市场情感...")
-            self.sentiment_analyzer = TradingAgentsSentimentAnalyzer()
+            # Sentiment analysis temporarily disabled due to FIN-R1 removal
+            # self.sentiment_analyzer = TradingAgentsSentimentAnalyzer()
 
             try:
-                # 分析整体市场情感
-                market_sentiment = (
-                    await self.sentiment_analyzer.analyze_market_sentiment()
-                )
+                # Market sentiment analysis temporarily disabled
+                # market_sentiment = await self.sentiment_analyzer.analyze_market_sentiment()
+                # Use neutral sentiment as fallback
+                market_sentiment = {"overall_sentiment": 0, "confidence": 0.5}
                 self.market_analysis["sentiment"] = {
                     "score": market_sentiment.get("overall_sentiment", 0),
                     "confidence": market_sentiment.get("confidence", 0.5),

@@ -6,20 +6,11 @@ import apiClient from '../client'
 
 export const chatApi = {
   /**
-   * 发送聊天消息
+   * 发送聊天消息（增加超时时间适应AI响应）
    */
   send: (message, conversationId = '') => 
-    apiClient.post('/chat', { message, conversation_id: conversationId }),
-  
-  /**
-   * AI智能对话
-   */
-  aiChat: (text, amount = null, riskTolerance = null, conversationId = null) =>
-    apiClient.post('/v1/ai/chat', {
-      text,
-      amount,
-      risk_tolerance: riskTolerance,
-      conversation_id: conversationId
+    apiClient.post('/chat', { message, conversation_id: conversationId }, {
+      timeout: 90000 // AI服务专用超时时间：90秒
     }),
   
   /**
