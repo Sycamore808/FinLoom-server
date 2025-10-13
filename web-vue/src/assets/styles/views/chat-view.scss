@@ -14,6 +14,46 @@
   flex-direction: column;
 }
 
+// 新对话全屏界面
+.new-chat-fullscreen {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.new-chat-card {
+  background: linear-gradient(135deg, 
+    rgba(var(--v-theme-primary), 0.02) 0%, 
+    rgba(var(--v-theme-surface), 1) 50%,
+    rgba(var(--v-theme-secondary), 0.02) 100%
+  );
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px !important;
+  box-shadow: 0 2px 12px rgba(var(--v-theme-shadow), 0.08);
+}
+
+.new-chat-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.08);
+  background: rgba(var(--v-theme-surface), 0.8);
+  backdrop-filter: blur(10px);
+}
+
+.history-btn {
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateX(-2px);
+    background: rgba(var(--v-theme-primary), 0.08);
+  }
+}
+
 // 侧边栏样式
 .sidebar-col {
   width: 320px;
@@ -463,6 +503,36 @@
   .input-container {
     padding: 12px 16px 16px 16px;
   }
+}
+
+// 历史记录对话框样式
+.conversation-item-dialog {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+  background: rgb(var(--v-theme-surface-container-lowest));
+  
+  &:hover {
+    transform: translateX(4px);
+    border-color: rgba(var(--v-theme-outline), 0.2);
+    box-shadow: 0 4px 12px rgba(var(--v-theme-shadow), 0.1);
+    background: rgba(var(--v-theme-primary), 0.04);
+  }
+}
+
+// 过渡动画
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fade-slide-enter-from {
+  opacity: 0;
+  transform: scale(0.98) translateY(10px);
+}
+
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: scale(0.98) translateY(-10px);
 }
 
 // 动画效果

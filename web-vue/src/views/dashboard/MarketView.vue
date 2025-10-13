@@ -192,7 +192,26 @@
               </div>
             </v-card-title>
             <v-card-text class="pa-6">
-              <v-list density="compact">
+              <!-- 加载中 -->
+              <div v-if="sectorLoading" class="text-center py-8">
+                <v-progress-circular indeterminate color="primary" size="32"></v-progress-circular>
+                <p class="mt-2 text-caption text-medium-emphasis">加载中...</p>
+              </div>
+              <!-- 加载失败 -->
+              <div v-else-if="sectorError" class="text-center py-8">
+                <v-icon size="48" color="error">mdi-alert-circle-outline</v-icon>
+                <p class="mt-2 text-body-2 text-medium-emphasis">数据加载失败</p>
+                <v-btn size="small" variant="text" color="primary" @click="loadMarketData(true)">
+                  重新加载
+                </v-btn>
+              </div>
+              <!-- 无数据 -->
+              <div v-else-if="!sectorPerformance || sectorPerformance.length === 0" class="text-center py-8">
+                <v-icon size="48" color="grey">mdi-information-outline</v-icon>
+                <p class="mt-2 text-body-2 text-medium-emphasis">暂无板块数据</p>
+              </div>
+              <!-- 有数据 -->
+              <v-list v-else density="compact">
                 <v-list-item
                   v-for="sector in sectorPerformance"
                   :key="sector.name"
@@ -234,39 +253,55 @@
               </div>
         </v-card-title>
             <v-card-text class="pa-6">
-          <div class="mb-6">
-            <div class="d-flex justify-space-between align-center mb-2">
-                  <span class="text-body-2">恐慌</span>
-                  <span class="font-weight-bold text-h6">{{ marketSentiment.fear_greed_index }}</span>
-                  <span class="text-body-2">贪婪</span>
-            </div>
-            <v-progress-linear
-                  :model-value="marketSentiment.fear_greed_index"
-              height="20"
-                  :color="getSentimentColor(marketSentiment.fear_greed_index)"
-              rounded
-            ></v-progress-linear>
-                <div class="text-center mt-2">
-                  <v-chip :color="getSentimentColor(marketSentiment.fear_greed_index)" size="small" variant="tonal">
-                    {{ getSentimentLabel(marketSentiment.fear_greed_index) }}
-                  </v-chip>
+              <!-- 加载中 -->
+              <div v-if="sentimentLoading" class="text-center py-8">
+                <v-progress-circular indeterminate color="primary" size="32"></v-progress-circular>
+                <p class="mt-2 text-caption text-medium-emphasis">加载中...</p>
+              </div>
+              <!-- 加载失败 -->
+              <div v-else-if="sentimentError" class="text-center py-8">
+                <v-icon size="48" color="error">mdi-alert-circle-outline</v-icon>
+                <p class="mt-2 text-body-2 text-medium-emphasis">数据加载失败</p>
+                <v-btn size="small" variant="text" color="primary" @click="loadMarketData(true)">
+                  重新加载
+                </v-btn>
+              </div>
+              <!-- 有数据 -->
+              <div v-else>
+                <div class="mb-6">
+                  <div class="d-flex justify-space-between align-center mb-2">
+                    <span class="text-body-2">恐慌</span>
+                    <span class="font-weight-bold text-h6">{{ marketSentiment.fear_greed_index }}</span>
+                    <span class="text-body-2">贪婪</span>
+                  </div>
+                  <v-progress-linear
+                    :model-value="marketSentiment.fear_greed_index"
+                    height="20"
+                    :color="getSentimentColor(marketSentiment.fear_greed_index)"
+                    rounded
+                  ></v-progress-linear>
+                  <div class="text-center mt-2">
+                    <v-chip :color="getSentimentColor(marketSentiment.fear_greed_index)" size="small" variant="tonal">
+                      {{ getSentimentLabel(marketSentiment.fear_greed_index) }}
+                    </v-chip>
+                  </div>
                 </div>
-          </div>
 
-          <v-row>
-                <v-col cols="6">
-              <div class="text-center">
-                    <div class="text-h5 font-weight-bold text-success">{{ marketSentiment.advancing_stocks }}</div>
-                <div class="text-caption">上涨股票</div>
+                <v-row>
+                  <v-col cols="6">
+                    <div class="text-center">
+                      <div class="text-h5 font-weight-bold text-success">{{ marketSentiment.advancing_stocks }}</div>
+                      <div class="text-caption">上涨股票</div>
+                    </div>
+                  </v-col>
+                  <v-col cols="6">
+                    <div class="text-center">
+                      <div class="text-h5 font-weight-bold text-error">{{ marketSentiment.declining_stocks }}</div>
+                      <div class="text-caption">下跌股票</div>
+                    </div>
+                  </v-col>
+                </v-row>
               </div>
-            </v-col>
-                <v-col cols="6">
-              <div class="text-center">
-                    <div class="text-h5 font-weight-bold text-error">{{ marketSentiment.declining_stocks }}</div>
-                <div class="text-caption">下跌股票</div>
-              </div>
-            </v-col>
-              </v-row>
             </v-card-text>
           </v-card>
         </v-col>
@@ -284,7 +319,26 @@
               </div>
             </v-card-title>
             <v-card-text class="pa-6">
-              <v-list density="compact">
+              <!-- 加载中 -->
+              <div v-if="indicatorsLoading" class="text-center py-8">
+                <v-progress-circular indeterminate color="primary" size="32"></v-progress-circular>
+                <p class="mt-2 text-caption text-medium-emphasis">加载中...</p>
+              </div>
+              <!-- 加载失败 -->
+              <div v-else-if="indicatorsError" class="text-center py-8">
+                <v-icon size="48" color="error">mdi-alert-circle-outline</v-icon>
+                <p class="mt-2 text-body-2 text-medium-emphasis">数据加载失败</p>
+                <v-btn size="small" variant="text" color="primary" @click="loadMarketData(true)">
+                  重新加载
+                </v-btn>
+              </div>
+              <!-- 无数据 -->
+              <div v-else-if="!technicalIndicators || technicalIndicators.length === 0" class="text-center py-8">
+                <v-icon size="48" color="grey">mdi-information-outline</v-icon>
+                <p class="mt-2 text-body-2 text-medium-emphasis">暂无技术指标数据</p>
+              </div>
+              <!-- 有数据 -->
+              <v-list v-else density="compact">
                 <v-list-item
                   v-for="indicator in technicalIndicators"
                   :key="indicator.name"
@@ -330,16 +384,36 @@
             size="small"
             @click="viewAllNews"
             prepend-icon="mdi-arrow-right"
+            v-if="!newsLoading && !newsError && marketNews.length > 0"
           >
             查看更多
           </v-btn>
         </v-card-title>
-        <v-card-text class="pa-0">
-          <v-list>
+        <v-card-text class="pa-6">
+          <!-- 加载中 -->
+          <div v-if="newsLoading" class="text-center py-8">
+            <v-progress-circular indeterminate color="primary" size="32"></v-progress-circular>
+            <p class="mt-2 text-caption text-medium-emphasis">加载中...</p>
+          </div>
+          <!-- 加载失败 -->
+          <div v-else-if="newsError" class="text-center py-8">
+            <v-icon size="48" color="error">mdi-alert-circle-outline</v-icon>
+            <p class="mt-2 text-body-2 text-medium-emphasis">数据加载失败</p>
+            <v-btn size="small" variant="text" color="primary" @click="loadMarketData(true)">
+              重新加载
+            </v-btn>
+          </div>
+          <!-- 无数据 -->
+          <div v-else-if="!marketNews || marketNews.length === 0" class="text-center py-8">
+            <v-icon size="48" color="grey">mdi-information-outline</v-icon>
+            <p class="mt-2 text-body-2 text-medium-emphasis">暂无市场资讯</p>
+          </div>
+          <!-- 有数据 -->
+          <v-list v-else class="pa-0">
             <v-list-item
               v-for="news in marketNews"
               :key="news.id"
-              class="px-6"
+              class="px-0"
             >
               <template v-slot:prepend>
                 <v-avatar :color="news.type === 'important' ? 'error' : 'primary'" size="32" variant="tonal">
@@ -400,35 +474,28 @@ const hotStocks = ref([
 ])
 
 // 板块表现数据
-const sectorPerformance = ref([
-  { name: '科技', change: 2.5, count: 156, color: 'primary', icon: 'mdi-laptop' },
-  { name: '医药', change: 1.8, count: 89, color: 'success', icon: 'mdi-medical-bag' },
-  { name: '金融', change: -0.5, count: 45, color: 'info', icon: 'mdi-bank' },
-  { name: '消费', change: 1.2, count: 78, color: 'warning', icon: 'mdi-shopping' },
-  { name: '能源', change: -1.8, count: 34, color: 'error', icon: 'mdi-lightning-bolt' }
-])
+const sectorPerformance = ref([])
+const sectorLoading = ref(true)
+const sectorError = ref(false)
 
 // 市场情绪数据
 const marketSentiment = ref({
-  fear_greed_index: 65,
-  advancing_stocks: 1256,
-  declining_stocks: 834
+  fear_greed_index: 0,
+  advancing_stocks: 0,
+  declining_stocks: 0
 })
+const sentimentLoading = ref(true)
+const sentimentError = ref(false)
 
 // 技术指标数据
-const technicalIndicators = ref([
-  { name: 'RSI', value: 58.5, signal: '中性', color: 'primary', icon: 'mdi-chart-line', description: '相对强弱指数' },
-  { name: 'MACD', value: 0.25, signal: '买入', color: 'success', icon: 'mdi-chart-areaspline', description: '移动平均收敛散度' },
-  { name: 'KDJ', value: 72.3, signal: '超买', color: 'warning', icon: 'mdi-chart-scatter-plot', description: '随机指标' },
-  { name: 'BOLL', value: 1.05, signal: '突破', color: 'info', icon: 'mdi-chart-box', description: '布林带指标' }
-])
+const technicalIndicators = ref([])
+const indicatorsLoading = ref(true)
+const indicatorsError = ref(false)
 
 // 市场新闻数据
-const marketNews = ref([
-  { id: 1, title: '央行宣布降准0.5个百分点', summary: '为支持实体经济发展，央行决定下调存款准备金率', time: new Date(), type: 'important' },
-  { id: 2, title: '科技股集体上涨', summary: '人工智能概念股表现强劲，多只股票涨停', time: new Date(Date.now() - 3600000), type: 'normal' },
-  { id: 3, title: '新能源汽车销量创新高', summary: '11月新能源汽车销量同比增长35%', time: new Date(Date.now() - 7200000), type: 'normal' }
-])
+const marketNews = ref([])
+const newsLoading = ref(true)
+const newsError = ref(false)
 
 // 表格头部
 const stockHeaders = [
@@ -559,34 +626,118 @@ onUnmounted(() => {
 
 async function loadMarketData(force = false) {
   try {
-    // 并行获取指数和热门股票数据
-    const [indicesResponse, stocksResponse] = await Promise.all([
+    // 设置加载状态
+    sectorLoading.value = true
+    sentimentLoading.value = true
+    indicatorsLoading.value = true
+    newsLoading.value = true
+    
+    // 并行获取所有市场数据，使用 Promise.allSettled 确保部分失败不影响其他
+    const results = await Promise.allSettled([
       api.market.getIndices(),
-      api.market.getHotStocks()
+      api.market.getHotStocks(),
+      api.market.getSectorAnalysis(),
+      api.market.getMarketSentiment(),
+      api.market.getTechnicalIndicators(),
+      api.market.getMarketNews(10)
     ])
     
     // 更新指数数据
-    if (indicesResponse.data && indicesResponse.data.indices) {
-      marketIndices.value = indicesResponse.data.indices.map(index => ({
+    if (results[0].status === 'fulfilled' && results[0].value.data?.indices) {
+      marketIndices.value = results[0].value.data.indices.map(index => ({
         symbol: index.symbol,
         name: index.name,
         value: index.value,
         change: index.change,
         change_pct: index.change_pct
       }))
+      console.log('✅ 市场指数数据加载完成:', marketIndices.value.length)
+    } else {
+      console.warn('⚠️ 市场指数数据加载失败')
     }
     
     // 更新热门股票数据
-    if (stocksResponse.data && stocksResponse.data.hot_stocks) {
-      hotStocks.value = stocksResponse.data.hot_stocks
+    if (results[1].status === 'fulfilled' && results[1].value.data?.hot_stocks) {
+      hotStocks.value = results[1].value.data.hot_stocks
+      console.log('✅ 热门股票数据加载完成:', hotStocks.value.length)
+    } else {
+      console.warn('⚠️ 热门股票数据加载失败')
     }
     
-    console.log('✅ 市场数据加载完成:', {
+    // 更新板块分析数据
+    sectorLoading.value = false
+    if (results[2].status === 'fulfilled' && results[2].value.data?.sectors) {
+      sectorPerformance.value = results[2].value.data.sectors
+      sectorError.value = false
+      console.log('✅ 板块分析数据加载完成:', sectorPerformance.value.length)
+    } else {
+      sectorError.value = true
+      console.warn('⚠️ 板块分析数据加载失败', results[2])
+    }
+    
+    // 更新市场情绪数据
+    sentimentLoading.value = false
+    if (results[3].status === 'fulfilled' && results[3].value.data) {
+      marketSentiment.value = {
+        fear_greed_index: results[3].value.data.fear_greed_index,
+        advancing_stocks: results[3].value.data.advancing_stocks,
+        declining_stocks: results[3].value.data.declining_stocks
+      }
+      sentimentError.value = false
+      console.log('✅ 市场情绪数据加载完成:', marketSentiment.value)
+    } else {
+      sentimentError.value = true
+      console.warn('⚠️ 市场情绪数据加载失败', results[3])
+    }
+    
+    // 更新技术指标数据
+    indicatorsLoading.value = false
+    if (results[4].status === 'fulfilled' && results[4].value.data?.indicators) {
+      technicalIndicators.value = results[4].value.data.indicators
+      indicatorsError.value = false
+      console.log('✅ 技术指标数据加载完成:', technicalIndicators.value.length)
+    } else {
+      indicatorsError.value = true
+      console.warn('⚠️ 技术指标数据加载失败', results[4])
+    }
+    
+    // 更新市场资讯数据
+    newsLoading.value = false
+    if (results[5].status === 'fulfilled' && results[5].value.data?.news) {
+      marketNews.value = results[5].value.data.news.map(news => ({
+        id: news.id,
+        title: news.title,
+        summary: news.summary,
+        time: new Date(news.time),
+        type: news.type
+      }))
+      newsError.value = false
+      console.log('✅ 市场资讯数据加载完成:', marketNews.value.length)
+    } else {
+      newsError.value = true
+      console.warn('⚠️ 市场资讯数据加载失败', results[5])
+    }
+    
+    // 统计加载结果
+    const successCount = results.filter(r => r.status === 'fulfilled').length
+    console.log(`✅ 市场数据加载完成: ${successCount}/6 个API成功`, {
       indices: marketIndices.value.length,
-      stocks: hotStocks.value.length
+      stocks: hotStocks.value.length,
+      sectors: sectorPerformance.value.length,
+      indicators: technicalIndicators.value.length,
+      news: marketNews.value.length
     })
   } catch (error) {
     console.error('❌ 加载市场数据失败:', error)
+    // 设置所有错误状态
+    sectorLoading.value = false
+    sentimentLoading.value = false
+    indicatorsLoading.value = false
+    newsLoading.value = false
+    sectorError.value = true
+    sentimentError.value = true
+    indicatorsError.value = true
+    newsError.value = true
   }
 }
 
@@ -680,8 +831,8 @@ function viewStockDetail(stock) {
 }
 
 function viewAllNews() {
-  // 实现查看所有新闻功能
-  console.log('查看所有新闻')
+  // 跳转到资讯详情页面
+  router.push({ name: 'news' })
 }
 </script>
 

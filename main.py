@@ -420,6 +420,16 @@ class FinLoomEngine:
         """初始化引擎（快速模式）"""
         logger.info("Starting FinLoom Engine...")
 
+        # 初始化缓存系统
+        try:
+            from common.cache_manager import get_memory_cache, cleanup_cache_daemon
+            print("💾 初始化缓存系统...")
+            get_memory_cache()  # 初始化全局缓存
+            cleanup_cache_daemon()  # 启动缓存清理守护进程
+            print("✅ 缓存系统已就绪")
+        except Exception as e:
+            logger.warning(f"⚠️ 初始化缓存系统失败: {e}")
+
         # 初始化默认管理员账户
         try:
             from common.init_default_admin import init_default_admin
@@ -646,6 +656,23 @@ class FinLoomEngine:
                 # 返回Vue3 SPA入口文件
                 return FileResponse(os.path.join(vue_dist_path, "index.html"))
 
+        # 启动市场数据定时更新调度器（带预加载）
+        try:
+            from common.market_data_scheduler import get_scheduler
+            
+            scheduler = get_scheduler()
+            
+            # 设置数据更新函数
+            scheduler.set_indices_updater(_fetch_indices_updater_wrapper)
+            scheduler.set_hot_stocks_updater(_fetch_hot_stocks_updater_wrapper)
+            
+            # 启动调度器并立即预加载数据（避免用户首次访问时等待）
+            scheduler.start(preload=True)
+            logger.info("✅ 市场数据定时更新调度器已启动（已启用预加载）")
+            print("💾 市场数据预加载中...（后台执行，不阻塞服务器启动）")
+        except Exception as e:
+            logger.warning(f"⚠️ 启动市场数据调度器失败: {e}")
+        
         # 启动服务器
         config = uvicorn.Config(app, host=host, port=port, log_level="info")
         server = uvicorn.Server(config)
@@ -656,7 +683,94 @@ class FinLoomEngine:
         if not HAS_FASTAPI or not app:
             return
 
+        # ==================== 全局缓存：PortfolioManager单例 ====================
+        # 避免每次API请求都重新初始化PortfolioManager（耗时操作）
+        _portfolio_manager_cache = {"instance": None, "initialized_at": None}
+        
+        def get_cached_portfolio_manager():
+            """获取缓存的PortfolioManager实例"""
+            from module_05_risk_management.portfolio_optimization.portfolio_manager import (
+                PortfolioConfig,
+                PortfolioManager,
+            )
+            
+            # 检查缓存是否存在
+            if _portfolio_manager_cache["instance"] is None:
+                logger.info("💾 创建PortfolioManager实例（首次）")
+                config = PortfolioConfig()
+                portfolio_manager = PortfolioManager(config)
+                
+                # 初始化投资组合（如果还没有初始化）
+                if portfolio_manager.initial_capital == 0:
+                    portfolio_manager.initialize_portfolio(1000000)
+                
+                _portfolio_manager_cache["instance"] = portfolio_manager
+                _portfolio_manager_cache["initialized_at"] = datetime.now()
+                logger.info("✅ PortfolioManager实例已缓存")
+            else:
+                logger.info("✅ 使用缓存的PortfolioManager实例")
+            
+            return _portfolio_manager_cache["instance"]
+
         # ==================== 辅助函数：指数数据获取 ====================
+        
+        async def _fetch_indices_updater_wrapper():
+            """定时任务：更新市场指数数据的包装函数"""
+            index_config = [
+                {"code": "000001", "name": "上证指数", "symbol": "000001.SH"},
+                {"code": "399001", "name": "深证成指", "symbol": "399001.SZ"},
+                {"code": "399006", "name": "创业板指", "symbol": "399006.SZ"},
+            ]
+            
+            try:
+                indices = await _fetch_indices_from_eastmoney(index_config)
+                if indices:
+                    return {
+                        "data": {
+                            "timestamp": datetime.now().isoformat(),
+                            "indices": indices,
+                            "source": "eastmoney_scheduler",
+                        },
+                        "message": "Market indices updated by scheduler",
+                    }
+            except Exception as e:
+                logger.error(f"定时任务更新指数数据失败: {e}")
+            return None
+        
+        async def _fetch_hot_stocks_updater_wrapper():
+            """定时任务：更新热门股票数据的包装函数"""
+            try:
+                # 优先使用东方财富
+                hot_stocks = await _fetch_hot_stocks_from_eastmoney()
+                data_source = "eastmoney_scheduler"
+                
+                # 如果失败，降级到雪球
+                if not hot_stocks:
+                    hot_stocks = await _fetch_hot_stocks_from_xueqiu()
+                    data_source = "xueqiu_scheduler"
+                
+                if hot_stocks:
+                    # 计算市场情绪
+                    advancing = sum(1 for s in hot_stocks if s.get("change", 0) > 0)
+                    declining = sum(1 for s in hot_stocks if s.get("change", 0) < 0)
+                    sentiment_score = (advancing / (advancing + declining) * 100) if (advancing + declining) > 0 else 50
+                    
+                    return {
+                        "data": {
+                            "timestamp": datetime.now().isoformat(),
+                            "hot_stocks": hot_stocks,
+                            "market_sentiment": {
+                                "fear_greed_index": int(sentiment_score),
+                                "advancing_stocks": advancing,
+                                "declining_stocks": declining,
+                            },
+                            "source": data_source,
+                        },
+                        "message": "Hot stocks updated by scheduler",
+                    }
+            except Exception as e:
+                logger.error(f"定时任务更新热门股票失败: {e}")
+            return None
 
         async def _fetch_indices_from_eastmoney(index_config):
             """从东方财富获取指数数据（带反爬虫策略）"""
@@ -2898,23 +3012,11 @@ class FinLoomEngine:
 
         @app.get("/api/v1/dashboard/metrics")
         async def get_dashboard_metrics():
-            """获取仪表板指标 - 使用真实数据"""
+            """获取仪表板指标 - 使用真实数据（优化版：使用缓存实例）"""
             try:
-                from module_05_risk_management.portfolio_optimization.portfolio_manager import (
-                    PortfolioConfig,
-                    PortfolioManager,
-                )
-
-                # 创建投资组合管理器
-                config = PortfolioConfig()
-                portfolio_manager = PortfolioManager(config)
-
-                # 初始化投资组合（如果还没有初始化）
-                if portfolio_manager.initial_capital == 0:
-                    portfolio_manager.initialize_portfolio(1000000)  # 100万初始资金
-
-                # 获取投资组合摘要
+                # 🚀 优化：使用缓存的PortfolioManager实例，避免重复初始化
                 try:
+                    portfolio_manager = get_cached_portfolio_manager()
                     portfolio_summary = portfolio_manager.get_portfolio_summary()
 
                     # 计算实时指标
@@ -3035,29 +3137,30 @@ class FinLoomEngine:
 
         @app.get("/api/v1/portfolio/positions")
         async def get_portfolio_positions():
-            """获取投资组合持仓"""
+            """获取投资组合持仓（优化版：使用缓存实例）"""
             try:
-                # 导入投资组合管理器
+                # 🚀 优化：使用缓存的PortfolioManager实例
                 from module_01_data_pipeline.data_acquisition.akshare_collector import (
                     AkshareDataCollector,
                 )
-                from module_05_risk_management.portfolio_optimization.portfolio_manager import (
-                    PortfolioConfig,
-                    PortfolioManager,
-                )
+                
+                portfolio_manager = get_cached_portfolio_manager()
 
-                # 创建投资组合管理器
-                config = PortfolioConfig()
-                portfolio_manager = PortfolioManager(config)
-
-                # 初始化投资组合（如果还没有初始化）
-                if portfolio_manager.initial_capital == 0:
-                    portfolio_manager.initialize_portfolio(1000000)  # 100万初始资金
-
-                # 获取实时价格数据
+                # 🚀 优化：只获取持仓股票的实时数据，避免获取全部股票
                 collector = AkshareDataCollector()
                 try:
-                    realtime_data = collector.fetch_realtime_data([])
+                    # 获取持仓股票列表
+                    position_symbols = list(portfolio_manager.positions.keys())
+                    
+                    # 只获取持仓股票的实时数据（不是空列表！）
+                    realtime_data = {}
+                    if position_symbols:
+                        # 有持仓时才获取实时数据
+                        realtime_data = collector.fetch_realtime_data(position_symbols)
+                        logger.info(f"获取 {len(position_symbols)} 只持仓股票的实时数据")
+                    else:
+                        # 无持仓时直接跳过
+                        logger.info("当前无持仓，跳过实时数据获取")
 
                     # 更新持仓价格
                     market_data = {}
@@ -3555,10 +3658,8 @@ class FinLoomEngine:
                 # 创建数据收集器
                 collector = AkshareDataCollector()
 
-                # 获取实时股票数据
+                # 🚀 优化：只获取需要的股票数据，避免获取所有股票
                 try:
-                    realtime_data = collector.fetch_realtime_data([])  # 获取所有股票
-
                     # 选择一些主要股票
                     main_symbols = [
                         "000001",
@@ -3568,6 +3669,11 @@ class FinLoomEngine:
                         "000858",
                         "600519",
                     ]
+                    
+                    # 只获取这些主要股票的实时数据（不是空列表！）
+                    realtime_data = collector.fetch_realtime_data(main_symbols)
+                    logger.info(f"获取 {len(main_symbols)} 只主要股票的实时数据")
+                    
                     symbols_data = []
                     total_records = 0
 
@@ -3699,8 +3805,45 @@ class FinLoomEngine:
 
         @app.get("/api/v1/market/indices")
         async def get_market_indices():
-            """获取市场指数数据 - 专门为OverviewView优化，带反爬虫策略"""
-
+            """获取市场指数数据 - 多层缓存 + 降级策略"""
+            from common.cache_manager import get_market_data_cache
+            from common.market_data_scheduler import get_scheduler
+            
+            market_cache = get_market_data_cache()
+            
+            # ===== 第一层：内存缓存（1-2分钟）=====
+            cached_data = market_cache.get_market_indices()
+            if cached_data:
+                logger.info("✅ 从内存缓存返回市场指数数据")
+                cached_data["from_cache"] = True
+                return cached_data
+            
+            # ===== 第二层：数据库缓存（当日数据）=====
+            try:
+                from common.market_data_db_cache import get_db_cache
+                db_cache = get_db_cache()
+                db_data = db_cache.get_market_indices()
+                if db_data:
+                    logger.info("✅ 从数据库缓存返回市场指数数据")
+                    return db_data
+            except Exception as e:
+                logger.warning(f"读取数据库缓存失败: {e}")
+            
+            # ===== 第三层：实时获取（带限流）=====
+            # 检查是否允许请求外部数据源（限流保护）
+            if not market_cache.should_fetch_from_source('indices', min_interval=90):
+                # 限流中，返回空数据但不报错
+                logger.warning("⏸️ 请求限流中，返回最近的缓存数据")
+                return {
+                    "data": {
+                        "timestamp": datetime.now().isoformat(),
+                        "indices": [],
+                        "source": "rate_limited",
+                    },
+                    "message": "请求过于频繁，请稍后再试",
+                    "from_cache": False,
+                }
+            
             # 定义需要查询的指数配置
             index_config = [
                 {
@@ -3720,21 +3863,39 @@ class FinLoomEngine:
                 },
             ]
 
-            # 使用东方财富接口（带反爬虫策略和重试机制）
+            # 使用东方财富接口（带反爬虫策略和重试机制 + 超时保护）
             try:
-                logger.info("正在使用东方财富接口获取指数数据...")
-                indices = await _fetch_indices_from_eastmoney(index_config)
+                logger.info("🌐 从东方财富获取指数数据...")
+                # 添加10秒超时保护，避免长时间阻塞前端请求
+                indices = await asyncio.wait_for(
+                    _fetch_indices_from_eastmoney(index_config),
+                    timeout=10.0
+                )
 
                 if indices and len(indices) > 0:
                     logger.info(f"✅ 成功获取 {len(indices)} 个指数")
-                    return {
+                    result = {
                         "data": {
                             "timestamp": datetime.now().isoformat(),
                             "indices": indices,
                             "source": "eastmoney",
                         },
                         "message": "Market indices retrieved successfully",
+                        "from_cache": False,
                     }
+                    
+                    # 缓存到内存（2分钟有效期）
+                    market_cache.set_market_indices(result, ttl=120)
+                    
+                    # 保存到数据库缓存（异步保存，不阻塞响应）
+                    try:
+                        from common.market_data_db_cache import get_db_cache
+                        db_cache = get_db_cache()
+                        db_cache.save_market_indices(indices, source="eastmoney")
+                    except Exception as e:
+                        logger.warning(f"保存数据库缓存失败: {e}")
+                    
+                    return result
                 else:
                     # 重试后仍未获取到数据
                     error_msg = "无法获取指数数据"
@@ -3746,33 +3907,116 @@ class FinLoomEngine:
                             "timestamp": datetime.now().isoformat(),
                             "indices": [],
                         },
+                        "from_cache": False,
                     }
+            except asyncio.TimeoutError:
+                logger.warning("⏱️ 获取指数数据超时（10秒），返回降级数据")
+                # 超时时尝试返回数据库缓存
+                try:
+                    from common.market_data_db_cache import get_db_cache
+                    db_cache = get_db_cache()
+                    db_data = db_cache.get_market_indices()
+                    if db_data:
+                        logger.info("✅ 使用数据库缓存作为降级数据")
+                        db_data["degraded"] = True
+                        db_data["message"] = "数据获取超时，显示缓存数据"
+                        return db_data
+                except Exception as fallback_error:
+                    logger.error(f"读取数据库降级数据也失败: {fallback_error}")
+                
+                return {
+                    "error": "获取数据超时",
+                    "status": "timeout",
+                    "data": {"timestamp": datetime.now().isoformat(), "indices": []},
+                    "from_cache": False,
+                }
             except Exception as e:
                 logger.error(f"获取指数数据失败: {e}")
                 import traceback
 
                 traceback.print_exc()
+                
+                # 降级：尝试返回数据库缓存
+                try:
+                    from common.market_data_db_cache import get_db_cache
+                    db_cache = get_db_cache()
+                    db_data = db_cache.get_market_indices()
+                    if db_data:
+                        logger.warning("⚠️ 使用数据库缓存作为降级数据")
+                        db_data["degraded"] = True
+                        return db_data
+                except Exception as fallback_error:
+                    logger.error(f"读取数据库降级数据也失败: {fallback_error}")
+                
                 return {
                     "error": str(e),
                     "status": "error",
                     "data": {"timestamp": datetime.now().isoformat(), "indices": []},
+                    "from_cache": False,
                 }
 
         @app.get("/api/v1/market/hot-stocks")
         async def get_hot_stocks():
-            """获取热门股票数据 - 专门为MarketView优化，带反爬虫和降级策略"""
+            """获取热门股票数据 - 多层缓存 + 降级策略"""
+            from common.cache_manager import get_market_data_cache
+            
+            market_cache = get_market_data_cache()
+            
+            # ===== 第一层：内存缓存（1-2分钟）=====
+            cached_data = market_cache.get_hot_stocks()
+            if cached_data:
+                logger.info("✅ 从内存缓存返回热门股票数据")
+                cached_data["from_cache"] = True
+                return cached_data
+            
+            # ===== 第二层：数据库缓存（当日数据）=====
+            try:
+                from common.market_data_db_cache import get_db_cache
+                db_cache = get_db_cache()
+                db_data = db_cache.get_hot_stocks()
+                if db_data:
+                    logger.info("✅ 从数据库缓存返回热门股票数据")
+                    return db_data
+            except Exception as e:
+                logger.warning(f"读取数据库缓存失败: {e}")
+            
+            # ===== 第三层：实时获取（带限流）=====
+            # 检查是否允许请求外部数据源（限流保护）
+            if not market_cache.should_fetch_from_source('hot_stocks', min_interval=90):
+                logger.warning("⏸️ 请求限流中，返回最近的缓存数据")
+                return {
+                    "data": {
+                        "timestamp": datetime.now().isoformat(),
+                        "hot_stocks": [],
+                        "market_sentiment": {
+                            "fear_greed_index": 50,
+                            "vix": 20.0,
+                            "advancing_stocks": 0,
+                            "declining_stocks": 0,
+                        },
+                        "source": "rate_limited",
+                    },
+                    "message": "请求过于频繁，请稍后再试",
+                    "from_cache": False,
+                }
 
             hot_stocks = []
             data_source = None
 
-            # 策略1: 尝试使用东方财富接口（带反爬虫策略）
+            # 策略1: 尝试使用东方财富接口（带反爬虫策略 + 超时保护）
             try:
                 logger.info("策略1: 尝试使用东方财富接口获取热门股票...")
-                hot_stocks = await _fetch_hot_stocks_from_eastmoney()
+                # 添加10秒超时保护
+                hot_stocks = await asyncio.wait_for(
+                    _fetch_hot_stocks_from_eastmoney(),
+                    timeout=10.0
+                )
 
                 if hot_stocks and len(hot_stocks) > 0:
                     logger.info(f"✅ 东方财富接口成功获取 {len(hot_stocks)} 只热门股票")
                     data_source = "eastmoney"
+            except asyncio.TimeoutError:
+                logger.warning("⏱️ 东方财富接口超时（10秒）")
             except Exception as e:
                 logger.warning(f"东方财富接口失败: {e}")
 
@@ -3780,11 +4024,17 @@ class FinLoomEngine:
             if not hot_stocks:
                 try:
                     logger.info("策略2: 降级使用雪球接口获取热门股票...")
-                    hot_stocks = await _fetch_hot_stocks_from_xueqiu()
+                    # 添加10秒超时保护
+                    hot_stocks = await asyncio.wait_for(
+                        _fetch_hot_stocks_from_xueqiu(),
+                        timeout=10.0
+                    )
 
                     if hot_stocks and len(hot_stocks) > 0:
                         logger.info(f"✅ 雪球接口成功获取 {len(hot_stocks)} 只热门股票")
                         data_source = "xueqiu"
+                except asyncio.TimeoutError:
+                    logger.warning("⏱️ 雪球接口超时（10秒）")
                 except Exception as e:
                     logger.error(f"雪球接口也失败: {e}")
 
@@ -3810,7 +4060,7 @@ class FinLoomEngine:
                     f"热门股票数据获取成功: {len(hot_stocks)}只股票 (来源: {data_source})"
                 )
 
-                return {
+                result = {
                     "data": {
                         "timestamp": datetime.now().isoformat(),
                         "hot_stocks": hot_stocks,
@@ -3818,11 +4068,38 @@ class FinLoomEngine:
                         "source": data_source,
                     },
                     "message": f"Hot stocks retrieved successfully from {data_source}",
+                    "from_cache": False,
                 }
+                
+                # 缓存到内存（2分钟有效期）
+                market_cache.set_hot_stocks(result, ttl=120)
+                
+                # 保存到数据库缓存（异步保存，不阻塞响应）
+                try:
+                    from common.market_data_db_cache import get_db_cache
+                    db_cache = get_db_cache()
+                    db_cache.save_hot_stocks(hot_stocks, sentiment=market_sentiment, source=data_source)
+                except Exception as e:
+                    logger.warning(f"保存数据库缓存失败: {e}")
+                
+                return result
             else:
                 # 所有策略都失败
                 error_msg = "所有数据源都无法获取热门股票数据"
                 logger.error(error_msg)
+                
+                # 降级：尝试返回数据库缓存
+                try:
+                    from common.market_data_db_cache import get_db_cache
+                    db_cache = get_db_cache()
+                    db_data = db_cache.get_hot_stocks()
+                    if db_data:
+                        logger.warning("⚠️ 使用数据库缓存作为降级数据")
+                        db_data["degraded"] = True
+                        return db_data
+                except Exception as fallback_error:
+                    logger.error(f"读取数据库降级数据也失败: {fallback_error}")
+                
                 return {
                     "error": error_msg,
                     "status": "error",
@@ -3831,6 +4108,7 @@ class FinLoomEngine:
                         "hot_stocks": [],
                         "market_sentiment": market_sentiment,
                     },
+                    "from_cache": False,
                 }
 
         @app.get("/api/v1/market/overview")
@@ -3908,6 +4186,29 @@ class FinLoomEngine:
                 )
                 logger.warning(
                     "Module 4 comprehensive analysis not available - check component implementations"
+                )
+
+            # 导入市场情报API（板块分析、市场情绪、技术指标、市场资讯）
+            try:
+                from module_04_market_analysis.api.market_intelligence_api import (
+                    router as market_intelligence_router,
+                )
+
+                app.include_router(market_intelligence_router)
+                logger.info(
+                    "Module 4 Market Intelligence API integrated successfully"
+                )
+                logger.info("Available market intelligence endpoints:")
+                logger.info("  - /api/v1/market/sector-analysis")
+                logger.info("  - /api/v1/market/market-sentiment")
+                logger.info("  - /api/v1/market/technical-indicators")
+                logger.info("  - /api/v1/market/market-news")
+            except Exception as import_error:
+                logger.warning(
+                    f"Market intelligence API import failed: {import_error}"
+                )
+                logger.warning(
+                    "Module 4 market intelligence not available - check component implementations"
                 )
 
         except Exception as e:

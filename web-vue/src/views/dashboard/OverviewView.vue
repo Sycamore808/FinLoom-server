@@ -293,11 +293,11 @@
             </v-card-title>
             <v-card-text class="px-6 pb-6">
               <div class="chart-container">
-                <canvas ref="portfolioChartRef"></canvas>
-              </div>
-              <div v-if="positions.length === 0" class="text-center py-8">
-                <v-icon size="48" class="text-medium-emphasis mb-4">mdi-chart-donut-variant</v-icon>
-                <p class="text-body-2 text-medium-emphasis">暂无持仓数据</p>
+                <canvas ref="portfolioChartRef" v-if="positions.length > 0"></canvas>
+                <div v-if="positions.length === 0" class="empty-state">
+                  <v-icon size="64" class="text-medium-emphasis mb-4">mdi-chart-donut-variant</v-icon>
+                  <p class="text-body-2 text-medium-emphasis">暂无持仓数据</p>
+                </div>
               </div>
             </v-card-text>
           </v-card>
@@ -535,31 +535,9 @@ onMounted(async () => {
   }
   
   try {
-    // 使用缓存数据（如果有效）
-    await Promise.all([
-      dashboardStore.fetchMetrics(),  // 自动检查缓存
-      loadMarketData()                // 市场指数（带缓存）
-    ])
-    
-    // 延迟加载次要数据 - 使用缓存
-    setTimeout(async () => {
-      await Promise.all([
-        dashboardStore.fetchPositions(),
-        dashboardStore.fetchRecentTrades()
-      ])
-      // 有持仓数据后再初始化投资组合图表
-      if (positions.value.length > 0) {
-        initPortfolioChart()
-      }
-    }, 500)
-    
-    // 延迟初始化收益曲线图表
-    setTimeout(() => {
-      initEquityChart()
-    }, 1000)
-    
-    // 启动自动刷新 - 只在交易时间刷新实时数据
-    startAutoRefresh()
+    // 🎯 优先级1：核心数据（仓位、资金）- 立即加载
+    console.log('📊 [优先级1] 加载核心数据（仓位、资金）...')
+    await dashboardStore.fetchMetrics()  // 核心指标
     
     // 更新时间戳
     if (!hasCache) {
@@ -573,8 +551,45 @@ onMounted(async () => {
         second: '2-digit'
       }) + ' (缓存)'
     }
+    
+    // 🎯 优先级2：持仓和交易记录 - 延迟300ms加载（不阻塞页面显示）
+    setTimeout(async () => {
+      console.log('📊 [优先级2] 加载持仓和交易记录...')
+      await Promise.all([
+        dashboardStore.fetchPositions(),
+        dashboardStore.fetchRecentTrades()
+      ])
+      // 有持仓数据后再初始化投资组合图表
+      if (positions.value.length > 0) {
+        initPortfolioChart()
+      }
+    }, 300)
+    
+    // 🎯 优先级3：市场数据 - 延迟800ms加载（次要功能，不影响核心体验）
+    setTimeout(async () => {
+      console.log('📊 [优先级3] 加载市场数据...')
+      try {
+        await loadMarketData()  // 市场指数（带缓存和超时保护）
+      } catch (error) {
+        // 市场数据加载失败不影响核心功能
+        console.warn('⚠️ 市场数据加载失败，但不影响核心功能:', error)
+      }
+    }, 800)
+    
+    // 延迟初始化收益曲线图表
+    setTimeout(() => {
+      initEquityChart()
+    }, 1200)
+    
+    // 启动自动刷新 - 只在交易时间刷新实时数据
+    startAutoRefresh()
+    
+  } catch (error) {
+    console.error('❌ 加载核心数据失败:', error)
+    // 即使核心数据加载失败，也不要完全阻塞页面
   } finally {
     isLoading.value = false
+    console.log('✅ 页面加载完成，用户可以开始操作')
   }
 })
 
@@ -1050,6 +1065,7 @@ function viewAllTrades() {
 
 .chart-card {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 100%;
   
   &:hover {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
@@ -1059,6 +1075,18 @@ function viewAllTrades() {
 .chart-container {
   height: 300px;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+  }
 }
 
 .market-overview-card {

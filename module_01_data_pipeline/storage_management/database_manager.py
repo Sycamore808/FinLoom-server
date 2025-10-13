@@ -1268,6 +1268,36 @@ class DatabaseManager:
             logger.error(f"Failed to save news data: {e}")
             return False
 
+    def get_stock_list(self) -> pd.DataFrame:
+        """获取所有股票列表
+
+        Returns:
+            股票列表DataFrame，包含symbol和name列
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            
+            # 从stock_info表获取股票列表
+            query = "SELECT DISTINCT symbol, name FROM stock_info ORDER BY symbol"
+            df = pd.read_sql_query(query, conn)
+            
+            # 如果stock_info表为空，尝试从stock_prices表获取
+            if df.empty:
+                query = "SELECT DISTINCT symbol FROM stock_prices ORDER BY symbol"
+                df = pd.read_sql_query(query, conn)
+                # 添加默认name列
+                if not df.empty and 'name' not in df.columns:
+                    df['name'] = df['symbol']
+            
+            conn.close()
+            
+            logger.info(f"Retrieved {len(df)} stocks from database")
+            return df
+
+        except Exception as e:
+            logger.error(f"Failed to get stock list: {e}")
+            return pd.DataFrame()
+
     def get_stock_prices(
         self,
         symbol: str,

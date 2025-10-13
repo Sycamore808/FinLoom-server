@@ -1,12 +1,14 @@
 """
 反爬虫工具模块
-提供User-Agent轮换、代理IP、重试机制等功能
+提供User-Agent轮换、代理IP、重试机制、Cookie管理、动态延迟等功能
 """
 
 import random
 import time
 from functools import wraps
 from typing import Callable, Dict, List, Optional
+from datetime import datetime
+import http.cookiejar
 
 from common.logging_system import setup_logger
 
@@ -118,13 +120,14 @@ def retry_with_backoff(
 
 
 class AntiSpiderSession:
-    """反爬虫会话管理器"""
+    """增强的反爬虫会话管理器"""
 
     def __init__(
         self,
         min_delay: float = 0.5,
         max_delay: float = 2.0,
         rotate_user_agent: bool = True,
+        use_dynamic_delay: bool = True,
     ):
         """初始化反爬虫会话
 
@@ -132,16 +135,31 @@ class AntiSpiderSession:
             min_delay: 最小请求间隔（秒）
             max_delay: 最大请求间隔（秒）
             rotate_user_agent: 是否轮换User-Agent
+            use_dynamic_delay: 是否使用动态延迟（根据时间段自适应）
         """
         self.min_delay = min_delay
         self.max_delay = max_delay
         self.rotate_user_agent = rotate_user_agent
+        self.use_dynamic_delay = use_dynamic_delay
         self.last_request_time = 0
         self.request_count = 0
         self.current_user_agent = get_random_user_agent()
+        self.cookies: Dict[str, str] = {}
+        self.referer_url = None
+        
+        # 失败计数，用于自适应延迟
+        self.failure_count = 0
+        self.success_count = 0
 
-    def get_headers(self) -> Dict[str, str]:
-        """获取请求头"""
+    def get_headers(self, url: Optional[str] = None) -> Dict[str, str]:
+        """获取增强的请求头
+        
+        Args:
+            url: 请求的URL，用于设置Referer
+            
+        Returns:
+            增强的请求头
+        """
         if self.rotate_user_agent and self.request_count % 5 == 0:
             # 每5次请求更换一次User-Agent
             self.current_user_agent = get_random_user_agent()
@@ -154,23 +172,136 @@ class AntiSpiderSession:
             "Connection": "keep-alive",
             "Upgrade-Insecure-Requests": "1",
             "Cache-Control": "max-age=0",
+            "DNT": "1",  # Do Not Track
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
         }
+        
+        # 添加 Referer（模拟真实浏览器行为）
+        if self.referer_url:
+            headers["Referer"] = self.referer_url
+        elif url:
+            # 使用同域名的首页作为 Referer
+            if "eastmoney.com" in str(url):
+                headers["Referer"] = "http://www.eastmoney.com/"
+            elif "xueqiu.com" in str(url):
+                headers["Referer"] = "https://xueqiu.com/"
+        
+        # 添加 Cookie（如果有）
+        if self.cookies:
+            cookie_str = "; ".join([f"{k}={v}" for k, v in self.cookies.items()])
+            headers["Cookie"] = cookie_str
 
         return headers
+    
+    def set_cookie(self, key: str, value: str):
+        """设置Cookie"""
+        self.cookies[key] = value
+        logger.debug(f"设置Cookie: {key}={value}")
+    
+    def set_referer(self, url: str):
+        """设置Referer"""
+        self.referer_url = url
+        logger.debug(f"设置Referer: {url}")
+    
+    def get_dynamic_delay(self) -> float:
+        """根据当前时间和请求情况动态计算延迟
+        
+        Returns:
+            动态延迟时间（秒）
+        """
+        now = datetime.now()
+        hour = now.hour
+        minute = now.minute
+        day_of_week = now.weekday()
+        
+        # 基础延迟
+        base_delay = self.min_delay
+        
+        # 1. 根据交易时间调整（交易时间加大延迟）
+        is_trading_time = False
+        if day_of_week < 5:  # 周一到周五
+            # 上午: 9:30-11:30
+            if (hour == 9 and minute >= 30) or (hour == 10) or (hour == 11 and minute <= 30):
+                is_trading_time = True
+            # 下午: 13:00-15:00
+            elif (hour == 13) or (hour == 14) or (hour == 15 and minute == 0):
+                is_trading_time = True
+        
+        if is_trading_time:
+            # 交易时间延迟加倍
+            base_delay = self.min_delay * 2
+            logger.debug("⏰ 当前为交易时间，延迟加倍")
+        
+        # 2. 根据失败率自适应调整
+        if self.request_count > 10:
+            failure_rate = self.failure_count / self.request_count
+            if failure_rate > 0.3:  # 失败率超过30%
+                base_delay *= (1 + failure_rate)  # 按失败率增加延迟
+                logger.debug(f"⚠️ 失败率 {failure_rate:.2%}，增加延迟")
+        
+        # 3. 添加随机抖动
+        actual_delay = base_delay + random.uniform(0, self.max_delay - self.min_delay)
+        
+        return actual_delay
 
-    def throttle(self):
-        """请求节流"""
+    def throttle(self, url: Optional[str] = None):
+        """智能请求节流
+        
+        Args:
+            url: 请求的URL
+        """
         current_time = time.time()
         time_since_last = current_time - self.last_request_time
+        
+        # 计算需要等待的时间
+        if self.use_dynamic_delay:
+            required_delay = self.get_dynamic_delay()
+        else:
+            required_delay = self.min_delay
 
-        if time_since_last < self.min_delay:
-            sleep_time = self.min_delay - time_since_last
-            # 添加随机性
-            sleep_time += random.uniform(0, self.max_delay - self.min_delay)
+        if time_since_last < required_delay:
+            sleep_time = required_delay - time_since_last
+            logger.debug(f"⏸️ 请求节流，等待 {sleep_time:.2f} 秒")
             time.sleep(sleep_time)
 
         self.last_request_time = time.time()
         self.request_count += 1
+        
+        # 更新 Referer
+        if url:
+            self.referer_url = url
+    
+    def mark_success(self):
+        """标记请求成功"""
+        self.success_count += 1
+        # 成功后逐渐降低失败计数
+        if self.failure_count > 0:
+            self.failure_count = max(0, self.failure_count - 1)
+    
+    def mark_failure(self):
+        """标记请求失败"""
+        self.failure_count += 1
+        logger.warning(f"请求失败，当前失败计数: {self.failure_count}")
+    
+    def get_stats(self) -> Dict[str, any]:
+        """获取会话统计信息"""
+        total = self.request_count
+        if total == 0:
+            return {
+                "total_requests": 0,
+                "success_count": 0,
+                "failure_count": 0,
+                "success_rate": 0
+            }
+        
+        return {
+            "total_requests": total,
+            "success_count": self.success_count,
+            "failure_count": self.failure_count,
+            "success_rate": self.success_count / total if total > 0 else 0
+        }
 
 
 class ProxyPool:
@@ -223,7 +354,7 @@ class ProxyPool:
 
 
 def patch_akshare_headers():
-    """为akshare打补丁，使其使用随机User-Agent
+    """为akshare打补丁，使其使用增强的反爬虫策略
 
     注意：这是一个实验性功能，可能随akshare版本变化而失效
     """
@@ -234,37 +365,54 @@ def patch_akshare_headers():
         original_get = requests.Session.get
         original_post = requests.Session.post
 
-        session = AntiSpiderSession()
+        # 使用增强的会话管理器
+        session = AntiSpiderSession(
+            min_delay=1.0,  # 增加最小延迟到1秒
+            max_delay=3.0,  # 最大延迟3秒
+            use_dynamic_delay=True  # 启用动态延迟
+        )
 
         def patched_get(self, url, **kwargs):
             """打补丁的get方法"""
-            # 添加随机延迟
-            session.throttle()
+            # 添加智能节流
+            session.throttle(url)
 
-            # 使用随机User-Agent
+            # 使用增强的请求头
             if "headers" not in kwargs:
                 kwargs["headers"] = {}
-            kwargs["headers"].update(session.get_headers())
+            kwargs["headers"].update(session.get_headers(url))
 
-            return original_get(self, url, **kwargs)
+            try:
+                result = original_get(self, url, **kwargs)
+                session.mark_success()
+                return result
+            except Exception as e:
+                session.mark_failure()
+                raise
 
         def patched_post(self, url, **kwargs):
             """打补丁的post方法"""
-            # 添加随机延迟
-            session.throttle()
+            # 添加智能节流
+            session.throttle(url)
 
-            # 使用随机User-Agent
+            # 使用增强的请求头
             if "headers" not in kwargs:
                 kwargs["headers"] = {}
-            kwargs["headers"].update(session.get_headers())
+            kwargs["headers"].update(session.get_headers(url))
 
-            return original_post(self, url, **kwargs)
+            try:
+                result = original_post(self, url, **kwargs)
+                session.mark_success()
+                return result
+            except Exception as e:
+                session.mark_failure()
+                raise
 
         # 应用补丁
         requests.Session.get = patched_get
         requests.Session.post = patched_post
 
-        logger.info("✅ 已为akshare应用反爬虫补丁")
+        logger.info("✅ 已为akshare应用增强的反爬虫补丁（动态延迟、Referer、Cookie）")
         return True
 
     except Exception as e:
