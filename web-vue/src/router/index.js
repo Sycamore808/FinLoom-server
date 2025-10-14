@@ -146,6 +146,12 @@ const router = createRouter({
           name: 'dashboard-settings',
           component: () => import('@/views/dashboard/SettingsView.vue'),
           meta: { title: '系统设置' }
+        },
+        {
+          path: 'news',
+          name: 'news',
+          component: () => import('@/views/dashboard/NewsView.vue'),
+          meta: { title: '市场资讯' }
         }
       ]
     },
@@ -193,10 +199,17 @@ router.beforeEach(async (to, from, next) => {
       return
     }
     
-    // 验证token有效性
+    // 验证token有效性（带超时保护）
     try {
       const { api } = await import('@/services')
-      const response = await api.auth.verify()
+      
+      // 添加3秒超时保护，避免验证请求卡住导致无法跳转
+      const verifyPromise = api.auth.verify()
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('验证请求超时')), 3000)
+      )
+      
+      const response = await Promise.race([verifyPromise, timeoutPromise])
       
       // 注意：响应拦截器已经提取了data
       if (!response.valid) {
@@ -210,25 +223,45 @@ router.beforeEach(async (to, from, next) => {
       
       console.log('✅ Token有效，允许访问')
       
-      // 检查管理员权限
+      // 检查管理员权限（带超时保护）
       if (to.meta.requiresAdmin) {
-        const profileResponse = await api.auth.getProfile()
-        const permissionLevel = profileResponse.data?.permission_level || 1
-        
-        if (permissionLevel < 2) {
-          console.log('❌ 需要管理员权限')
-          next({ name: 'dashboard', replace: true })
-          return
+        try {
+          const profilePromise = api.auth.getProfile()
+          const profileTimeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('获取权限信息超时')), 3000)
+          )
+          
+          const profileResponse = await Promise.race([profilePromise, profileTimeoutPromise])
+          const permissionLevel = profileResponse.data?.permission_level || 1
+          
+          if (permissionLevel < 2) {
+            console.log('❌ 需要管理员权限')
+            next({ name: 'dashboard', replace: true })
+            return
+          }
+          console.log('✅ 管理员权限验证通过')
+        } catch (adminError) {
+          console.warn('⚠️ 获取管理员权限信息失败，但允许继续访问:', adminError)
+          // 权限验证失败不应阻止页面访问，只是降级处理
         }
-        console.log('✅ 管理员权限验证通过')
       }
     } catch (error) {
       console.error('Token验证失败:', error)
-      localStorage.removeItem('finloom_auth')
-      localStorage.removeItem('finloom_token')
-      localStorage.removeItem('finloom_user')
-      next({ name: 'login', query: { redirect: to.fullPath } })
-      return
+      
+      // 只有在明确的401错误或token验证失败时才跳转登录
+      // 网络超时等问题不应立即踢出用户
+      if (error.message && error.message.includes('401')) {
+        console.log('❌ 401错误，跳转登录页')
+        localStorage.removeItem('finloom_auth')
+        localStorage.removeItem('finloom_token')
+        localStorage.removeItem('finloom_user')
+        next({ name: 'login', query: { redirect: to.fullPath } })
+        return
+      }
+      
+      // 超时或其他网络错误：允许访问但提示用户
+      console.warn('⚠️ Token验证超时或网络错误，允许继续访问（将在页面中重试）')
+      // 继续导航，让页面内部处理错误
     }
   }
   

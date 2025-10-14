@@ -279,10 +279,10 @@
         <div class="footer-section">
           <h4>产品</h4>
           <div class="footer-links">
-            <RouterLink to="/dashboard/chat">智能对话</RouterLink>
-            <RouterLink to="/dashboard/strategy">策略制定</RouterLink>
-            <a href="#">数据分析</a>
-            <a href="#">风险管理</a>
+            <RouterLink to="/login">智能对话</RouterLink>
+            <RouterLink to="/login">策略制定</RouterLink>
+            <RouterLink to="/login">数据分析</RouterLink>
+            <RouterLink to="/login">风险管理</RouterLink>
           </div>
         </div>
 
@@ -365,7 +365,7 @@ const features = [
     description: '与AI助手自然交流，快速获取市场分析、个股研究和投资建议。支持实时对话，灵活交互，让投资咨询更加便捷。', 
     color: 'linear-gradient(135deg, #667eea, #764ba2)',
     background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.03) 0%, rgba(168, 85, 247, 0.07) 100%)',
-    link: '/dashboard/chat'
+    link: '/login'
   },
   { 
     icon: 'fas fa-chart-line', 
@@ -373,7 +373,7 @@ const features = [
     description: '系统化构建投资策略，从需求分析到AI生成，再到回测优化和代码生成，提供全流程支持。', 
     color: 'linear-gradient(135deg, #f093fb, #f5576c)',
     background: 'linear-gradient(135deg, rgba(240, 147, 251, 0.05) 0%, rgba(245, 87, 108, 0.08) 100%)',
-    link: '/dashboard/strategy'
+    link: '/login'
   },
   { 
     icon: 'fas fa-database', 
