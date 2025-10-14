@@ -306,10 +306,34 @@ onMounted(async () => {
 async function loadStrategies() {
   loading.value = true
   try {
+    console.log('📚 加载策略列表...')
     const response = await api.strategy.list()
-    strategies.value = response.data.strategies || []
+    console.log('✅ 策略列表响应:', response)
+    
+    // 后端直接返回数组，不是包装在data中
+    if (Array.isArray(response)) {
+      strategies.value = response.map(s => ({
+        id: s.strategyId || s.strategy_id,
+        name: s.name,
+        description: s.description,
+        type: s.modelType || s.model_type || 'value',
+        status: s.status,
+        performance: {
+          totalReturn: s.totalReturn || s.total_return || 0,
+          sharpeRatio: s.sharpeRatio || s.sharpe_ratio || 0
+        },
+        createdAt: s.createdAt || s.created_at,
+        updatedAt: s.updatedAt || s.updated_at,
+        stocks: s.stockSymbols || s.stock_symbols || []
+      }))
+      console.log(`✅ 已加载 ${strategies.value.length} 个策略`)
+    } else {
+      console.error('❌ 意外的响应格式:', response)
+      strategies.value = []
+    }
   } catch (error) {
-    console.error('加载策略列表失败:', error)
+    console.error('❌ 加载策略列表失败:', error)
+    strategies.value = []
   } finally {
     loading.value = false
   }

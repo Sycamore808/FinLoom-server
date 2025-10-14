@@ -10,18 +10,42 @@ export const strategyApi = {
    */
   generate: (requirements) =>
     apiClient.post('/v1/strategy/generate', { requirements }),
+
+  /**
+   * 启动智能策略工作流
+   */
+  startWorkflow: (payload) =>
+    apiClient.post('/v1/strategy/workflow/start', payload),
+
+  /**
+   * 查询策略工作流状态
+   */
+  getWorkflowStatus: (jobId) =>
+    apiClient.get(`/v1/strategy/workflow/${jobId}/status`),
+
+  /**
+   * 获取策略工作流结果
+   */
+  getWorkflowResult: (jobId) =>
+    apiClient.get(`/v1/strategy/workflow/${jobId}/result`),
   
   /**
    * 保存策略
    */
-  save: (strategy) =>
-    apiClient.post('/v1/strategy/save', { strategy }),
+  save: (strategyData) =>
+    apiClient.post('/v1/strategy/save', strategyData),
   
   /**
    * 获取策略列表
    */
-  list: (userId = 'default_user', limit = 50) =>
-    apiClient.get('/v1/strategy/list', { params: { user_id: userId, limit } }),
+  list: (statusFilter = null, limit = 100, offset = 0) =>
+    apiClient.get('/v1/strategy/list', { 
+      params: { 
+        status_filter: statusFilter, 
+        limit, 
+        offset 
+      } 
+    }),
   
   /**
    * 获取策略详情
@@ -54,6 +78,12 @@ export const strategyApi = {
     apiClient.post(`/v1/strategy/${strategyId}/backtest`, params),
   
   /**
+   * 启动手动回测
+   */
+  startBacktest: (request) =>
+    apiClient.post('/v1/strategy/backtest/start', request),
+  
+  /**
    * 策略模板
    */
   templates: {
@@ -74,6 +104,64 @@ export const strategyApi = {
      */
     createFrom: (templateId, name, parameters = {}) =>
       apiClient.post(`/v1/strategy/from-template/${templateId}`, { name, parameters })
+  },
+
+  /**
+   * 实盘交易管理
+   */
+  live: {
+    /**
+     * 激活策略到实盘
+     */
+    activate: (strategyId, config) =>
+      apiClient.post('/v1/strategy/live/activate', {
+        strategyId,
+        initialCapital: config.initialCapital || 100000,
+        maxPositionPerStock: config.maxPositionPerStock || 0.2,
+        maxTotalPosition: config.maxTotalPosition || 0.8,
+        maxDailyLoss: config.maxDailyLoss || 0.05,
+        maxDrawdown: config.maxDrawdown || 0.15,
+        stopLoss: config.stopLoss || 0.1,
+        takeProfit: config.takeProfit || 0.2,
+        riskLevel: config.riskLevel || 'medium',
+        notificationChannels: config.notificationChannels || ['email']
+      }),
+    
+    /**
+     * 暂停策略
+     */
+    pause: (strategyId) =>
+      apiClient.post(`/v1/strategy/live/${strategyId}/pause`),
+    
+    /**
+     * 恢复策略
+     */
+    resume: (strategyId) =>
+      apiClient.post(`/v1/strategy/live/${strategyId}/resume`),
+    
+    /**
+     * 停止策略
+     */
+    stop: (strategyId) =>
+      apiClient.post(`/v1/strategy/live/${strategyId}/stop`),
+    
+    /**
+     * 获取策略实盘状态
+     */
+    getStatus: (strategyId) =>
+      apiClient.get(`/v1/strategy/live/${strategyId}/status`),
+    
+    /**
+     * 获取所有活跃策略
+     */
+    listActive: () =>
+      apiClient.get('/v1/strategy/live/active'),
+    
+    /**
+     * 手动触发每日任务
+     */
+    runDaily: () =>
+      apiClient.post('/v1/strategy/live/run-daily')
   }
 }
 

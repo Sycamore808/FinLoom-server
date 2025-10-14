@@ -3605,6 +3605,25 @@ class FinLoomEngine:
                 traceback.print_exc()
                 return {"error": str(e), "status": "error"}
 
+        # 集成智能策略工作流API
+        try:
+            from ai_strategy_system.strategy_api import (
+                backtest_router,
+                live_trading_router,
+            )
+            from ai_strategy_system.strategy_api import (  # noqa: WPS433
+                router as strategy_workflow_router,
+            )
+
+            app.include_router(strategy_workflow_router)
+            app.include_router(backtest_router)
+            app.include_router(live_trading_router)
+            logger.info(
+                "Strategy workflow API and Live Trading API integrated successfully"
+            )
+        except Exception as import_error:
+            logger.warning("Strategy workflow API import failed: %s", import_error)
+
         # 集成Module 4 市场分析API - 使用真实功能
         try:
             from module_04_market_analysis.api.market_analysis_api import (

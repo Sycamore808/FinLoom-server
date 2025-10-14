@@ -124,6 +124,12 @@ const router = createRouter({
           meta: { title: '策略模板' }
         },
         {
+          path: 'strategy/live',
+          name: 'dashboard-strategy-live',
+          component: () => import('@/views/dashboard/strategy/LiveTradingView.vue'),
+          meta: { title: '实盘运行' }
+        },
+        {
           path: 'reports',
           name: 'dashboard-reports',
           component: () => import('@/views/dashboard/ReportsView.vue'),

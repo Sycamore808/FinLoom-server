@@ -485,3 +485,4 @@ visualization_output/
 
 .qoder/
 node_modules/
+generated_strategies

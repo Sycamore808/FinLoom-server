@@ -215,7 +215,8 @@ const mainMenuItems = [
     children: [
       { path: '/dashboard/strategy/create', label: '创建策略' },
       { path: '/dashboard/strategy/library', label: '策略库' },
-      { path: '/dashboard/strategy/templates', label: '策略模板' }
+      { path: '/dashboard/strategy/templates', label: '策略模板' },
+      { path: '/dashboard/strategy/live', label: '实盘运行' }
     ]
   },
   { path: '/dashboard/portfolio', icon: 'fas fa-briefcase', label: '投资组合' },
