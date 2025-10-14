@@ -256,7 +256,6 @@ uv.lock
 
 # Project specific
 # Data files
-data/
 *.csv
 *.parquet
 *.h5
